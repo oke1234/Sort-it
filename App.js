@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
-  FlatList,
   Modal,
   Pressable,
-  SafeAreaView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -13,225 +12,25 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { styles, COLORS} from "./styles";
 
-const STORAGE_KEY = "SHOPPING_ITEMS";
-const STORE_KEY = "SELECTED_STORE";
+import {
+  STORAGE_KEY,
+  STORE_KEY,
+  stores,
+  storeRoutes,
+  categoryIcons,
+} from "./shoppingData";
 
-const stores = ["Lidl", "Jumbo", "Albert Heijn"];
-
-const storeRoutes = {
-  Lidl: [
-    "Groente en fruit",
-    "Brood",
-    "Ontbijt",
-    "Conserven",
-    "Pasta en rijst",
-    "Sauzen en kruiden",
-    "Drinken",
-    "Snacks en snoep",
-    "Koeling en zuivel",
-    "Vlees en vis",
-    "Diepvries",
-    "Huishouden",
-    "Overig",
-  ],
-
-  Jumbo: [
-    "Groente en fruit",
-    "Brood",
-    "Vlees en vis",
-    "Koeling en zuivel",
-    "Ontbijt",
-    "Pasta en rijst",
-    "Conserven",
-    "Sauzen en kruiden",
-    "Snacks en snoep",
-    "Drinken",
-    "Diepvries",
-    "Huishouden",
-    "Overig",
-  ],
-
-  "Albert Heijn": [
-    "Groente en fruit",
-    "Brood",
-    "Vlees en vis",
-    "Koeling en zuivel",
-    "Ontbijt",
-    "Pasta en rijst",
-    "Sauzen en kruiden",
-    "Conserven",
-    "Snacks en snoep",
-    "Drinken",
-    "Diepvries",
-    "Huishouden",
-    "Overig",
-  ],
-};
-
-const categoryKeywords = {
-  "Groente en fruit": [
-    "appel",
-    "banaan",
-    "peer",
-    "sinaasappel",
-    "mandarijn",
-    "aardbei",
-    "druif",
-    "tomaat",
-    "komkommer",
-    "sla",
-    "paprika",
-    "ui",
-    "knoflook",
-    "aardappel",
-    "wortel",
-    "courgette",
-    "broccoli",
-    "bloemkool",
-    "fruit",
-    "groente",
-  ],
-
-  Brood: [
-    "brood",
-    "bolletje",
-    "croissant",
-    "stokbrood",
-    "wrap",
-    "toast",
-    "beschuit",
-  ],
-
-  "Koeling en zuivel": [
-    "melk",
-    "kaas",
-    "yoghurt",
-    "kwark",
-    "boter",
-    "room",
-    "vla",
-    "ei",
-    "eieren",
-    "zuivel",
-  ],
-
-  "Vlees en vis": [
-    "kip",
-    "gehakt",
-    "vlees",
-    "vis",
-    "zalm",
-    "worst",
-    "hamburger",
-    "spek",
-    "tonijn",
-  ],
-
-  Ontbijt: [
-    "cornflakes",
-    "muesli",
-    "havermout",
-    "ontbijt",
-    "jam",
-    "hagelslag",
-    "pindakaas",
-  ],
-
-  "Pasta en rijst": [
-    "pasta",
-    "spaghetti",
-    "macaroni",
-    "rijst",
-    "noedels",
-    "couscous",
-  ],
-
-  Conserven: [
-    "blik",
-    "bonen",
-    "mais",
-    "erwten",
-    "soep",
-    "tomatenblokjes",
-  ],
-
-  "Sauzen en kruiden": [
-    "saus",
-    "ketchup",
-    "mayonaise",
-    "mosterd",
-    "kruiden",
-    "zout",
-    "peper",
-    "olie",
-    "azijn",
-  ],
-
-  Drinken: [
-    "cola",
-    "water",
-    "sap",
-    "limonade",
-    "koffie",
-    "thee",
-    "bier",
-    "wijn",
-    "drinken",
-  ],
-
-  "Snacks en snoep": [
-    "chips",
-    "snoep",
-    "koek",
-    "chocolade",
-    "nootjes",
-    "popcorn",
-    "snack",
-  ],
-
-  Diepvries: [
-    "diepvries",
-    "ijs",
-    "pizza",
-    "friet",
-    "patat",
-    "bevroren",
-  ],
-
-  Huishouden: [
-    "toiletpapier",
-    "keukenrol",
-    "wasmiddel",
-    "afwasmiddel",
-    "schoonmaak",
-    "vuilniszak",
-    "zeep",
-    "shampoo",
-    "tandpasta",
-  ],
-};
-
-function getCategory(itemName) {
-  const name = itemName.toLowerCase();
-
-  for (const [category, keywords] of Object.entries(categoryKeywords)) {
-    const match = keywords.some((keyword) => name.includes(keyword));
-
-    if (match) {
-      return category;
-    }
-  }
-
-  return "Overig";
-}
+import { getCategory } from "./categoryService";
 
 export default function App() {
   const [items, setItems] = useState([]);
   const [selectedStore, setSelectedStore] = useState("Lidl");
   const [newItem, setNewItem] = useState("");
-  const [modalVisible, setModalVisible] = useState(false);
-  const [storeMenuVisible, setStoreMenuVisible] = useState(false);
+  const [itemModalVisible, setItemModalVisible] = useState(false);
+  const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -241,51 +40,82 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
 
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items)).catch(() => {
+      Alert.alert("Fout", "De boodschappen konden niet worden opgeslagen.");
+    });
   }, [items, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
 
-    AsyncStorage.setItem(STORE_KEY, selectedStore);
+    AsyncStorage.setItem(STORE_KEY, selectedStore).catch(() => {
+      Alert.alert("Fout", "De winkel kon niet worden opgeslagen.");
+    });
   }, [selectedStore, loaded]);
 
   const loadData = async () => {
     try {
-      const savedItems = await AsyncStorage.getItem(STORAGE_KEY);
-      const savedStore = await AsyncStorage.getItem(STORE_KEY);
+      const [savedItems, savedStore] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(STORE_KEY),
+      ]);
 
       if (savedItems) {
         setItems(JSON.parse(savedItems));
       }
 
-      if (savedStore) {
+      if (savedStore && stores.includes(savedStore)) {
         setSelectedStore(savedStore);
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Fout", "De boodschappen konden niet worden geladen.");
     } finally {
       setLoaded(true);
     }
   };
 
-  const addItem = () => {
+  const openItemModal = () => {
+    setNewItem("");
+    setItemModalVisible(true);
+  };
+
+  const closeItemModal = () => {
+    setNewItem("");
+    setItemModalVisible(false);
+  };
+
+  const addItem = async () => {
     const cleanedName = newItem.trim();
 
-    if (!cleanedName) {
-      return;
+    if (!cleanedName) return;
+
+    try {
+      const category = await getCategory(
+        cleanedName,
+        selectedStore
+      );
+
+      const item = {
+        id: `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
+        name: cleanedName,
+        category,
+        completed: false,
+      };
+
+      setItems((currentItems) => [
+        ...currentItems,
+        item,
+      ]);
+
+      closeItemModal();
+    } catch (error) {
+      Alert.alert(
+        "Fout",
+        "Het product kon niet worden toegevoegd."
+      );
     }
-
-    const item = {
-      id: Date.now().toString(),
-      name: cleanedName,
-      category: getCategory(cleanedName),
-      completed: false,
-    };
-
-    setItems((currentItems) => [...currentItems, item]);
-    setNewItem("");
-    setModalVisible(false);
   };
 
   const toggleItem = (id) => {
@@ -304,17 +134,37 @@ export default function App() {
     );
   };
 
-  const clearCompleted = () => {
-    const completedItems = items.filter((item) => item.completed);
+  const confirmRemoveItem = (item) => {
+    Alert.alert(
+      "Product verwijderen",
+      `Wil je "${item.name}" verwijderen?`,
+      [
+        {
+          text: "Annuleren",
+          style: "cancel",
+        },
+        {
+          text: "Verwijderen",
+          style: "destructive",
+          onPress: () => removeItem(item.id),
+        },
+      ]
+    );
+  };
 
-    if (completedItems.length === 0) {
-      Alert.alert("Geen producten", "Er zijn nog geen producten afgevinkt.");
+  const clearCompleted = () => {
+    const completedCount = items.filter((item) => item.completed).length;
+
+    if (completedCount === 0) {
+      Alert.alert("Nog niets afgevinkt", "Er zijn geen producten om te verwijderen.");
       return;
     }
 
     Alert.alert(
-      "Afgevinkte producten verwijderen",
-      "Weet je zeker dat je alle afgevinkte producten wilt verwijderen?",
+      "Lijst opruimen",
+      `Wil je ${completedCount} afgevinkte ${
+        completedCount === 1 ? "boodschap" : "boodschappen"
+      } verwijderen?`,
       [
         {
           text: "Annuleren",
@@ -333,555 +183,403 @@ export default function App() {
     );
   };
 
-  const sortedSections = useMemo(() => {
-    const route = storeRoutes[selectedStore];
+  const openCount = useMemo(
+    () => items.filter((item) => !item.completed).length,
+    [items]
+  );
+
+  const completedCount = items.length - openCount;
+
+  const sections = useMemo(() => {
+    const route = storeRoutes[selectedStore] ?? storeRoutes.Lidl;
 
     return route
       .map((category) => ({
-        category,
-        items: items
+        title: category,
+        data: items
           .filter((item) => item.category === category)
           .sort((a, b) => {
-            if (a.completed === b.completed) {
-              return a.name.localeCompare(b.name);
+            if (a.completed !== b.completed) {
+              return a.completed ? 1 : -1;
             }
 
-            return a.completed ? 1 : -1;
+            return a.name.localeCompare(b.name, "nl");
           }),
       }))
-      .filter((section) => section.items.length > 0);
+      .filter((section) => section.data.length > 0);
   }, [items, selectedStore]);
 
-  const renderShoppingItem = ({ item }) => (
-    <View style={styles.itemRow}>
-      <TouchableOpacity
-        style={styles.itemMain}
-        onPress={() => toggleItem(item.id)}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name={item.completed ? "checkmark-circle" : "ellipse-outline"}
-          size={27}
-          color={item.completed ? "#2f8f4e" : "#707070"}
-        />
+  const renderItem = ({ item, index, section }) => {
+    const isLastItem = index === section.data.length - 1;
 
-        <Text
-          style={[
-            styles.itemText,
-            item.completed && styles.completedItemText,
-          ]}
+    return (
+      <View
+        style={[
+          styles.itemRow,
+          !isLastItem && styles.itemRowBorder,
+          isLastItem && styles.lastItemRow,
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.itemMain}
+          onPress={() => toggleItem(item.id)}
+          onLongPress={() => confirmRemoveItem(item)}
+          activeOpacity={0.65}
         >
-          {item.name}
+          <View
+            style={[
+              styles.checkbox,
+              item.completed && styles.checkboxCompleted,
+            ]}
+          >
+            {item.completed && (
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            )}
+          </View>
+
+          <Text
+            style={[
+              styles.itemText,
+              item.completed && styles.completedItemText,
+            ]}
+            numberOfLines={2}
+          >
+            {item.name}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => confirmRemoveItem(item)}
+          style={styles.deleteButton}
+          activeOpacity={0.65}
+          accessibilityLabel={`${item.name} verwijderen`}
+        >
+          <Ionicons
+            name="trash-outline"
+            size={18}
+            color={COLORS.danger}
+          />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleGroup}>
+        <View style={styles.sectionIcon}>
+          <Ionicons
+            name={categoryIcons[section.title] ?? "basket-outline"}
+            size={15}
+            color={COLORS.primary}
+          />
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          {section.title}
         </Text>
+      </View>
+
+      <Text style={styles.sectionCountText}>
+        {section.data.length}
+      </Text>
+    </View>
+  );
+
+  const renderListHeader = () => (
+    <>
+      <View style={styles.simpleHeader}>
+        <View>
+          <Text style={styles.simpleEyebrow}>
+            MIJN BOODSCHAPPEN
+          </Text>
+
+          <Text style={styles.simpleTitle}>
+            Boodschappenlijst
+          </Text>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>
+              {openCount} open
+            </Text>
+
+            <View style={styles.summaryDot} />
+
+            <Text style={styles.summaryText}>
+              {completedCount} klaar
+            </Text>
+
+            <View style={styles.summaryDot} />
+
+            <Text style={styles.summaryText}>
+              {items.length} totaal
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.cleanButton}
+          onPress={clearCompleted}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="checkmark-done-outline"
+            size={20}
+            color={COLORS.primary}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={styles.storeSelector}
+        onPress={() => setStoreModalVisible(true)}
+        activeOpacity={0.75}
+      >
+        <View style={styles.storeSelectorIcon}>
+          <Ionicons
+            name="storefront-outline"
+            size={20}
+            color={COLORS.primary}
+          />
+        </View>
+
+        <View style={styles.storeSelectorContent}>
+          <Text style={styles.storeSelectorLabel}>
+            Winkel
+          </Text>
+
+          <Text style={styles.storeSelectorText}>
+            {selectedStore}
+          </Text>
+        </View>
+
+        <Ionicons
+          name="chevron-down"
+          size={19}
+          color={COLORS.textSoft}
+        />
       </TouchableOpacity>
 
+      <View style={styles.listHeading}>
+        <Text style={styles.listTitle}>
+          Jouw lijst
+        </Text>
+      </View>
+    </>
+  );
+
+  const renderEmptyList = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="basket-outline" size={43} color={COLORS.primary} />
+      </View>
+
+      <Text style={styles.emptyTitle}>Je lijst is nog leeg</Text>
+
+      <Text style={styles.emptyText}>
+        Voeg een product toe. De app kiest zelf de juiste categorie.
+      </Text>
+
       <TouchableOpacity
-        onPress={() => removeItem(item.id)}
-        style={styles.deleteButton}
+        style={styles.emptyButton}
+        onPress={openItemModal}
+        activeOpacity={0.8}
       >
-        <Ionicons name="trash-outline" size={21} color="#cc3b3b" />
+        <Ionicons name="add" size={20} color="#FFFFFF" />
+        <Text style={styles.emptyButtonText}>Eerste product toevoegen</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.smallTitle}>Mijn boodschappen</Text>
-            <Text style={styles.title}>Smart Shopping</Text>
-          </View>
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          ListHeaderComponent={renderListHeader}
+          ListEmptyComponent={renderEmptyList}
+          stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.listContent,
+            sections.length === 0 && styles.emptyListContent,
+          ]}
+          SectionSeparatorComponent={() => <View style={styles.sectionSpacing} />}
+        />
 
+        {sections.length > 0 && (
           <TouchableOpacity
-            style={styles.clearButton}
-            onPress={clearCompleted}
+            style={styles.addButton}
+            onPress={openItemModal}
+            activeOpacity={0.85}
           >
-            <Ionicons name="checkmark-done" size={22} color="#2f8f4e" />
+            <Ionicons name="add" size={31} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-
-        <Text style={styles.storeLabel}>Welke winkel?</Text>
-
-        <TouchableOpacity
-          style={styles.storeSelector}
-          onPress={() => setStoreMenuVisible(true)}
-        >
-          <View style={styles.storeSelectorLeft}>
-            <Ionicons name="storefront-outline" size={23} color="#222" />
-
-            <Text style={styles.storeSelectorText}>
-              {selectedStore}
-            </Text>
-          </View>
-
-          <Ionicons name="chevron-down" size={22} color="#555" />
-        </TouchableOpacity>
-
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Boodschappenlijst</Text>
-
-          <Text style={styles.itemCount}>
-            {items.filter((item) => !item.completed).length} open
-          </Text>
-        </View>
-
-        {sortedSections.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="basket-outline" size={70} color="#bbbbbb" />
-
-            <Text style={styles.emptyTitle}>
-              Je lijst is nog leeg
-            </Text>
-
-            <Text style={styles.emptyText}>
-              Druk op de plusknop om je eerste boodschap toe te voegen.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={sortedSections}
-            keyExtractor={(section) => section.category}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item: section }) => (
-              <View style={styles.categorySection}>
-                <View style={styles.categoryHeader}>
-                  <Text style={styles.categoryTitle}>
-                    {section.category}
-                  </Text>
-
-                  <Text style={styles.categoryCount}>
-                    {section.items.length}
-                  </Text>
-                </View>
-
-                <FlatList
-                  data={section.items}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderShoppingItem}
-                  scrollEnabled={false}
-                />
-              </View>
-            )}
-          />
         )}
-
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setModalVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={34} color="white" />
-        </TouchableOpacity>
       </View>
 
       <Modal
-        visible={modalVisible}
+        visible={itemModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        statusBarTranslucent
+        onRequestClose={closeItemModal}
       >
         <Pressable
-          style={styles.modalBackground}
-          onPress={() => setModalVisible(false)}
+          style={styles.modalBackdrop}
+          onPress={closeItemModal}
         >
           <Pressable
-            style={styles.modalCard}
+            style={styles.bottomSheet}
             onPress={(event) => event.stopPropagation()}
           >
             <View style={styles.modalHandle} />
 
-            <Text style={styles.modalTitle}>
-              Boodschap toevoegen
-            </Text>
+            <View style={styles.modalHeadingRow}>
+              <View>
+                <Text style={styles.modalEyebrow}>NIEUW PRODUCT</Text>
+                <Text style={styles.modalTitle}>Wat heb je nodig?</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={closeItemModal}
+              >
+                <Ionicons name="close" size={22} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
 
             <Text style={styles.modalDescription}>
-              Vul een product in. De app kiest automatisch een categorie.
+              De app plaatst het product automatisch in de juiste afdeling.
             </Text>
 
-            <TextInput
-              style={styles.input}
-              value={newItem}
-              onChangeText={setNewItem}
-              placeholder="Bijvoorbeeld: 2 pakken melk"
-              placeholderTextColor="#999"
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={addItem}
-            />
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="search-outline"
+                size={21}
+                color={COLORS.textSoft}
+              />
+
+              <TextInput
+                style={styles.input}
+                value={newItem}
+                onChangeText={setNewItem}
+                placeholder="Bijvoorbeeld 2 pakken melk"
+                placeholderTextColor="#98A19B"
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={addItem}
+                maxLength={80}
+              />
+
+              {newItem.length > 0 && (
+                <TouchableOpacity onPress={() => setNewItem("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={21}
+                    color="#A7AFA9"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
 
             <TouchableOpacity
               style={[
                 styles.saveButton,
-                !newItem.trim() && styles.disabledButton,
+                !newItem.trim() && styles.saveButtonDisabled,
               ]}
               onPress={addItem}
               disabled={!newItem.trim()}
+              activeOpacity={0.8}
             >
-              <Text style={styles.saveButtonText}>
-                Toevoegen
-              </Text>
+              <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
+              <Text style={styles.saveButtonText}>Toevoegen aan lijst</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
 
       <Modal
-        visible={storeMenuVisible}
+        visible={storeModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setStoreMenuVisible(false)}
+        statusBarTranslucent
+        onRequestClose={() => setStoreModalVisible(false)}
       >
         <Pressable
-          style={styles.storeModalBackground}
-          onPress={() => setStoreMenuVisible(false)}
+          style={styles.centerModalBackdrop}
+          onPress={() => setStoreModalVisible(false)}
         >
-          <View style={styles.storeModalCard}>
-            <Text style={styles.storeModalTitle}>
-              Kies een winkel
+          <Pressable
+            style={styles.storeModal}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View style={styles.storeModalIcon}>
+              <Ionicons
+                name="storefront-outline"
+                size={27}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <Text style={styles.storeModalTitle}>Kies je winkel</Text>
+
+            <Text style={styles.storeModalText}>
+              De volgorde van de categorieën past zich aan de winkel aan.
             </Text>
 
-            {stores.map((store) => (
-              <TouchableOpacity
-                key={store}
-                style={styles.storeOption}
-                onPress={() => {
-                  setSelectedStore(store);
-                  setStoreMenuVisible(false);
-                }}
-              >
-                <Text style={styles.storeOptionText}>{store}</Text>
+            <View style={styles.storeOptions}>
+              {stores.map((store) => {
+                const selected = selectedStore === store;
 
-                {selectedStore === store && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color="#2f8f4e"
-                  />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
+                return (
+                  <TouchableOpacity
+                    key={store}
+                    style={[
+                      styles.storeOption,
+                      selected && styles.storeOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedStore(store);
+                      setStoreModalVisible(false);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View
+                      style={[
+                        styles.storeOptionRadio,
+                        selected && styles.storeOptionRadioSelected,
+                      ]}
+                    >
+                      {selected && <View style={styles.storeOptionRadioDot} />}
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.storeOptionText,
+                        selected && styles.storeOptionTextSelected,
+                      ]}
+                    >
+                      {store}
+                    </Text>
+
+                    {selected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={COLORS.primary}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f6f7f4",
-  },
-
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-  },
-
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 26,
-  },
-
-  smallTitle: {
-    fontSize: 14,
-    color: "#707070",
-    marginBottom: 3,
-  },
-
-  title: {
-    fontSize: 29,
-    fontWeight: "800",
-    color: "#1c1c1c",
-  },
-
-  clearButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "white",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 5,
-  },
-
-  storeLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#666",
-    marginBottom: 8,
-  },
-
-  storeSelector: {
-    backgroundColor: "white",
-    borderRadius: 17,
-    paddingHorizontal: 17,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 25,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.06,
-    shadowRadius: 7,
-  },
-
-  storeSelectorLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-  },
-
-  storeSelectorText: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#222",
-  },
-
-  listHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-
-  listTitle: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#222",
-  },
-
-  itemCount: {
-    fontSize: 14,
-    color: "#666",
-    backgroundColor: "#e8ebe5",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-
-  listContent: {
-    paddingBottom: 130,
-  },
-
-  categorySection: {
-    backgroundColor: "white",
-    borderRadius: 18,
-    padding: 15,
-    marginBottom: 14,
-  },
-
-  categoryHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 7,
-  },
-
-  categoryTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#2f8f4e",
-  },
-
-  categoryCount: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#777",
-  },
-
-  itemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 49,
-    borderTopWidth: 1,
-    borderTopColor: "#eeeeee",
-  },
-
-  itemMain: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 11,
-    paddingVertical: 10,
-  },
-
-  itemText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#292929",
-  },
-
-  completedItemText: {
-    color: "#999",
-    textDecorationLine: "line-through",
-  },
-
-  deleteButton: {
-    padding: 10,
-  },
-
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingBottom: 100,
-    paddingHorizontal: 35,
-  },
-
-  emptyTitle: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#333",
-    marginTop: 17,
-    marginBottom: 7,
-  },
-
-  emptyText: {
-    fontSize: 15,
-    color: "#777",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-
-  addButton: {
-    position: "absolute",
-    right: 23,
-    bottom: 30,
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: "#2f8f4e",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 7,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-  },
-
-  modalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.38)",
-    justifyContent: "flex-end",
-  },
-
-  modalCard: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 35,
-  },
-
-  modalHandle: {
-    alignSelf: "center",
-    width: 45,
-    height: 5,
-    borderRadius: 10,
-    backgroundColor: "#d5d5d5",
-    marginBottom: 22,
-  },
-
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#222",
-    marginBottom: 8,
-  },
-
-  modalDescription: {
-    fontSize: 15,
-    color: "#777",
-    lineHeight: 21,
-    marginBottom: 20,
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#dadada",
-    backgroundColor: "#fafafa",
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    paddingVertical: 15,
-    fontSize: 17,
-    color: "#222",
-    marginBottom: 15,
-  },
-
-  saveButton: {
-    backgroundColor: "#2f8f4e",
-    paddingVertical: 16,
-    alignItems: "center",
-    borderRadius: 15,
-  },
-
-  disabledButton: {
-    opacity: 0.45,
-  },
-
-  saveButtonText: {
-    color: "white",
-    fontSize: 17,
-    fontWeight: "800",
-  },
-
-  storeModalBackground: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.38)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 25,
-  },
-
-  storeModalCard: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "white",
-    borderRadius: 22,
-    padding: 20,
-  },
-
-  storeModalTitle: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#222",
-    marginBottom: 12,
-  },
-
-  storeOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 56,
-    borderTopWidth: 1,
-    borderTopColor: "#eeeeee",
-  },
-
-  storeOptionText: {
-    flex: 1,
-    fontSize: 17,
-    color: "#333",
-  },
-});
