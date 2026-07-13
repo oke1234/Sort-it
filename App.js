@@ -95,6 +95,13 @@ export default function App() {
         selectedStore
       );
 
+      console.log(
+        "Product:",
+        cleanedName,
+        "Categorie:",
+        category
+      );
+
       const item = {
         id: `${Date.now()}-${Math.random()
           .toString(36)
@@ -111,6 +118,11 @@ export default function App() {
 
       closeItemModal();
     } catch (error) {
+      console.error(
+        "Product toevoegen mislukt:",
+        error
+      );
+
       Alert.alert(
         "Fout",
         "Het product kon niet worden toegevoegd."
