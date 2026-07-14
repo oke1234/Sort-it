@@ -49,7 +49,7 @@ export default function App() {
     if (!loaded) return;
 
     AsyncStorage.setItem(STORE_KEY, selectedStore).catch(() => {
-      Alert.alert("Fout", "De winkel kon niet worden opgeslagen.");
+      Alert.alert("Fout", "De Supermarkt kon niet worden opgeslagen.");
     });
   }, [selectedStore, loaded]);
 
@@ -292,9 +292,12 @@ export default function App() {
         </Text>
       </View>
 
+      {/* Category item count (optional) */}
+      {/*
       <Text style={styles.sectionCountText}>
         {section.data.length}
       </Text>
+      */}
     </View>
   );
 
@@ -357,7 +360,7 @@ export default function App() {
 
         <View style={styles.storeSelectorContent}>
           <Text style={styles.storeSelectorLabel}>
-            Winkel
+            Supermarkt
           </Text>
 
           <Text style={styles.storeSelectorText}>
@@ -537,10 +540,10 @@ export default function App() {
               />
             </View>
 
-            <Text style={styles.storeModalTitle}>Kies je winkel</Text>
+            <Text style={styles.storeModalTitle}>Kies je Supermarkt</Text>
 
             <Text style={styles.storeModalText}>
-              De volgorde van de categorieën past zich aan de winkel aan.
+              De volgorde van de categorieën past zich aan de Supermarkt aan.
             </Text>
 
             <View style={styles.storeOptions}>

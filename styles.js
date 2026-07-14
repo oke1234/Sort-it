@@ -195,14 +195,14 @@ export const styles = StyleSheet.create({
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 44,
+    minHeight: 36,
     paddingLeft: 12,
-    paddingRight: 5,
+    paddingRight: 0,
     backgroundColor: COLORS.surface,
   },
 
   itemRowBorder: {
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.8,
     borderBottomColor: COLORS.border,
   },
 
