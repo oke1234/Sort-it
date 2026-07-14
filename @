@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Kracht-van-Voeding",
-    "slug": "Kracht-van-Voeding",
+    "name": "SortIt",
+    "slug": "SortIt",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,13 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.caspr.krachtvvoeding",
+      "bundleIdentifier": "com.casper.sortit",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.caspr.krachtvvoeding",
+      "package": "com.casper.sortit",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -31,8 +32,7 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "eas": {
-      }
+      "eas": {}
     },
     "owner": "caspr",
     "plugins": [

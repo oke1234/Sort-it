@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Sort It",
-    "slug": "sortit",
+    "name": "SortIt",
+    "slug": "SortIt",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -30,6 +30,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "c142595b-cd9a-4cc2-93ad-bf97fc4163af"
+      }
     }
   }
 }

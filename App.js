@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles, COLORS} from "./styles";
+import { Image } from "react-native";
 
 import {
   STORAGE_KEY,
@@ -32,6 +33,10 @@ export default function App() {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
+
+  const currentStore =
+    stores.find((store) => store.name === selectedStore) ??
+    stores[0];
 
   useEffect(() => {
     loadData();
@@ -64,7 +69,11 @@ export default function App() {
         setItems(JSON.parse(savedItems));
       }
 
-      if (savedStore && stores.includes(savedStore)) {
+      const storeExists = stores.some(
+        (store) => store.name === savedStore
+      );
+
+      if (savedStore && storeExists) {
         setSelectedStore(savedStore);
       }
     } catch {
@@ -351,10 +360,10 @@ export default function App() {
         activeOpacity={0.75}
       >
         <View style={styles.storeSelectorIcon}>
-          <Ionicons
-            name="storefront-outline"
-            size={20}
-            color={COLORS.primary}
+          <Image
+            source={currentStore.logo}
+            style={styles.storeLogo}
+            resizeMode="contain"
           />
         </View>
 
@@ -548,29 +557,26 @@ export default function App() {
 
             <View style={styles.storeOptions}>
               {stores.map((store) => {
-                const selected = selectedStore === store;
+                const selected = selectedStore === store.name;
 
                 return (
                   <TouchableOpacity
-                    key={store}
+                    key={store.id}
                     style={[
                       styles.storeOption,
                       selected && styles.storeOptionSelected,
                     ]}
                     onPress={() => {
-                      setSelectedStore(store);
+                      setSelectedStore(store.name);
                       setStoreModalVisible(false);
                     }}
                     activeOpacity={0.75}
                   >
-                    <View
-                      style={[
-                        styles.storeOptionRadio,
-                        selected && styles.storeOptionRadioSelected,
-                      ]}
-                    >
-                      {selected && <View style={styles.storeOptionRadioDot} />}
-                    </View>
+                    <Image
+                      source={store.logo}
+                      style={styles.storeOptionLogo}
+                      resizeMode="contain"
+                    />
 
                     <Text
                       style={[
@@ -578,7 +584,7 @@ export default function App() {
                         selected && styles.storeOptionTextSelected,
                       ]}
                     >
-                      {store}
+                      {store.name}
                     </Text>
 
                     {selected && (

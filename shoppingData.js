@@ -2,12 +2,36 @@ export const STORAGE_KEY = "SHOPPING_ITEMS";
 export const STORE_KEY = "SELECTED_STORE";
 
 export const stores = [
-  "Lidl",
-  "Jumbo",
-  "Albert Heijn",
-  "Plus",
-  "Aldi",
-  "Spar"
+  {
+    id: "lidl",
+    name: "Lidl",
+    logo: require("./assets/logos/lidl.png"),
+  },
+  {
+    id: "jumbo",
+    name: "Jumbo",
+    logo: require("./assets/logos/jumbo.png"),
+  },
+  {
+    id: "ah",
+    name: "Albert Heijn",
+    logo: require("./assets/logos/albert-heijn.png"),
+  },
+  {
+    id: "plus",
+    name: "Plus",
+    logo: require("./assets/logos/plus.png"),
+  },
+  {
+    id: "aldi",
+    name: "Aldi",
+    logo: require("./assets/logos/aldi.png"),
+  },
+  {
+    id: "spar",
+    name: "Spar",
+    logo: require("./assets/logos/spar.png"),
+  },
 ];
 
 export const storeRoutes = {

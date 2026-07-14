@@ -206,6 +206,17 @@ export const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
 
+  storeLogo: {
+    width: 30,
+    height: 30,
+  },
+
+  storeOptionLogo: {
+    width: 28,
+    height: 28,
+    marginRight: 12,
+  },
+
   lastItemRow: {
     borderBottomLeftRadius: 15,
     borderBottomRightRadius: 15,
