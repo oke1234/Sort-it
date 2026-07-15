@@ -9,6 +9,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -452,78 +454,84 @@ export default function App() {
         statusBarTranslucent
         onRequestClose={closeItemModal}
       >
-        <Pressable
-          style={styles.modalBackdrop}
-          onPress={closeItemModal}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "position"}
+          keyboardVerticalOffset={0}
         >
           <Pressable
-            style={styles.bottomSheet}
-            onPress={(event) => event.stopPropagation()}
+            style={styles.modalBackdrop}
+            onPress={closeItemModal}
           >
-            <View style={styles.modalHandle} />
+            <Pressable
+              style={styles.bottomSheet}
+              onPress={(event) => event.stopPropagation()}
+            >
+              <View style={styles.modalHandle} />
 
-            <View style={styles.modalHeadingRow}>
-              <View>
-                <Text style={styles.modalEyebrow}>NIEUW PRODUCT</Text>
-                <Text style={styles.modalTitle}>Wat heb je nodig?</Text>
+              <View style={styles.modalHeadingRow}>
+                <View>
+                  <Text style={styles.modalEyebrow}>NIEUW PRODUCT</Text>
+                  <Text style={styles.modalTitle}>Wat heb je nodig?</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeItemModal}
+                >
+                  <Ionicons name="close" size={22} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                De app plaatst het product automatisch in de juiste afdeling.
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="search-outline"
+                  size={21}
+                  color={COLORS.textSoft}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={newItem}
+                  onChangeText={setNewItem}
+                  placeholder="Bijvoorbeeld 2 pakken melk"
+                  placeholderTextColor="#98A19B"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={addItem}
+                  maxLength={80}
+                />
+
+                {newItem.length > 0 && (
+                  <TouchableOpacity onPress={() => setNewItem("")}>
+                    <Ionicons
+                      name="close-circle"
+                      size={21}
+                      color="#A7AFA9"
+                    />
+                  </TouchableOpacity>
+                )}
               </View>
 
               <TouchableOpacity
-                style={styles.closeButton}
-                onPress={closeItemModal}
+                style={[
+                  styles.saveButton,
+                  !newItem.trim() && styles.saveButtonDisabled,
+                ]}
+                onPress={addItem}
+                disabled={!newItem.trim()}
+                activeOpacity={0.8}
               >
-                <Ionicons name="close" size={22} color={COLORS.text} />
+                <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
+                <Text style={styles.saveButtonText}>Toevoegen aan lijst</Text>
               </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalDescription}>
-              De app plaatst het product automatisch in de juiste afdeling.
-            </Text>
-
-            <View style={styles.inputContainer}>
-              <Ionicons
-                name="search-outline"
-                size={21}
-                color={COLORS.textSoft}
-              />
-
-              <TextInput
-                style={styles.input}
-                value={newItem}
-                onChangeText={setNewItem}
-                placeholder="Bijvoorbeeld 2 pakken melk"
-                placeholderTextColor="#98A19B"
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={addItem}
-                maxLength={80}
-              />
-
-              {newItem.length > 0 && (
-                <TouchableOpacity onPress={() => setNewItem("")}>
-                  <Ionicons
-                    name="close-circle"
-                    size={21}
-                    color="#A7AFA9"
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                !newItem.trim() && styles.saveButtonDisabled,
-              ]}
-              onPress={addItem}
-              disabled={!newItem.trim()}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>Toevoegen aan lijst</Text>
-            </TouchableOpacity>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
