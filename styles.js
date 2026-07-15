@@ -20,6 +20,26 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
+  profileButton: {
+    position: "absolute",
+    right: 24,
+    bottom: 100, // above the + button
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+  },
+
   container: {
     flex: 1,
     marginTop: 0,

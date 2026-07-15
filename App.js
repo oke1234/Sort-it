@@ -36,6 +36,8 @@ export default function App() {
   const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  const navigation = useNavigation();
+
   const currentStore =
     stores.find((store) => store.name === selectedStore) ??
     stores[0];
@@ -454,6 +456,19 @@ export default function App() {
           ]}
           SectionSeparatorComponent={() => <View style={styles.sectionSpacing} />}
         />
+
+          {/* Profile button */}
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={() => navigation.navigate("Login")}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name="person-outline"
+            size={24}
+            color="#FFFFFF"
+          />
+        </TouchableOpacity>
 
         {sections.length > 0 && (
           <TouchableOpacity
