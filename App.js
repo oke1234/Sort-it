@@ -217,9 +217,8 @@ export default function App() {
     const route = storeRoutes[selectedStore] ?? storeRoutes.Lidl;
 
     return route
-      .map((category) => ({
-        title: category,
-        data: items
+      .map((category) => {
+        const categoryItems = items
           .filter((item) => item.category === category)
           .sort((a, b) => {
             if (a.completed !== b.completed) {
@@ -227,9 +226,29 @@ export default function App() {
             }
 
             return a.name.localeCompare(b.name, "nl");
-          }),
-      }))
-      .filter((section) => section.data.length > 0);
+          });
+
+        return {
+          title: category,
+          data: categoryItems,
+          completed:
+            categoryItems.length > 0 &&
+            categoryItems.every((item) => item.completed),
+        };
+      })
+      .filter((section) => section.data.length > 0)
+      .sort((a, b) => {
+        // Niet-afgeronde categorieën eerst
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1;
+        }
+
+        // Daarna originele winkelvolgorde behouden
+        return (
+          route.indexOf(a.title) -
+          route.indexOf(b.title)
+        );
+      });
   }, [items, selectedStore]);
 
   const renderItem = ({ item, index, section }) => {

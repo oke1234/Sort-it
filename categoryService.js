@@ -75,14 +75,34 @@ export async function getCategory(
           model: "gpt-5-mini",
 
           instructions: `
-Je deelt Nederlandse boodschappen in.
+          Je bent een boodschappenordener voor een supermarkt.
 
-Kies precies één categorie uit deze lijst:
+          Jouw taak is om een boodschappenitem in te delen in de categorie waar een klant het item in de supermarkt zou vinden.
 
-${categories.join("\n")}
+          Denk zoals een medewerker die de winkel kent.
 
-Geef alleen de exacte categorienaam terug.
-Geef geen uitleg.
+          Voorbeelden:
+          - Kipfilet → Koeling
+          - Melk → Zuivel
+          - Boter → Zuivel
+          - Diepvriespizza → Diepvries
+          - Brood → Brood
+          - Appel → Groente & Fruit
+          - Cola → Frisdrank
+          - Chips → Chips
+          - Tandpasta → Drogisterij
+
+          Kies ALTIJD de categorie waar het product fysiek in de supermarkt ligt, niet op basis van het soort product.
+
+          Gebruik uitsluitend één categorie uit deze lijst:
+
+          ${categories.join("\n")}
+
+          Regels:
+          - Geef precies één categorienaam terug.
+          - Gebruik exact de naam uit de lijst.
+          - Geef geen uitleg, geen leestekens en geen extra tekst.
+          - Weet je het niet zeker? Kies de meest logische categorie waar een klant het product zou zoeken.
           `.trim(),
 
           input: itemName,
