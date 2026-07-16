@@ -9,8 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { styles, COLORS } from "./styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function CreateAccountScreen({ navigation }) {
-  const [name, setName] = useState("");
+export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -20,37 +19,21 @@ export default function CreateAccountScreen({ navigation }) {
 
         <View style={{ marginTop: 60 }}>
           <Text style={styles.simpleEyebrow}>
-            CREATE ACCOUNT
+            WELCOME BACK
           </Text>
 
           <Text style={styles.simpleTitle}>
-            Sign Up
+            Sign in
           </Text>
 
           <Text style={styles.summaryText}>
-            Create an account to save your shopping lists.
+            Sign in to access your shopping lists.
           </Text>
         </View>
 
         <View style={{ marginTop: 40 }}>
 
           <View style={styles.inputContainer}>
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color={COLORS.textSoft}
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder="Name"
-              placeholderTextColor="#98A19B"
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-
-          <View style={[styles.inputContainer, { marginTop: 16 }]}>
             <Ionicons
               name="mail-outline"
               size={20}
@@ -89,17 +72,17 @@ export default function CreateAccountScreen({ navigation }) {
             style={[styles.saveButton, { marginTop: 28 }]}
             activeOpacity={0.8}
             onPress={() => {
-              // Create account
+              // Login
             }}
           >
             <Ionicons
-              name="person-add-outline"
+              name="log-in-outline"
               size={21}
               color="#FFF"
             />
 
             <Text style={styles.saveButtonText}>
-              Create Account
+              Sign In
             </Text>
           </TouchableOpacity>
 
@@ -108,7 +91,7 @@ export default function CreateAccountScreen({ navigation }) {
               alignSelf: "center",
               marginTop: 24,
             }}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate("CreateAccount")}
           >
             <Text
               style={{
@@ -117,7 +100,7 @@ export default function CreateAccountScreen({ navigation }) {
                 fontSize: 15,
               }}
             >
-              Already have an account? Sign In
+              Create Account
             </Text>
           </TouchableOpacity>
 

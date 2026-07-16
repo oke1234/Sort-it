@@ -44,6 +44,11 @@ export const styles = StyleSheet.create({
     flex: 1,
     marginTop: 0,
   },
+  
+  container2: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
 
   listContent: {
     paddingHorizontal: 18,
