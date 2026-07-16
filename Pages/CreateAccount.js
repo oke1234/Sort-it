@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { styles, COLORS } from "../styles";
+import { styles, COLORS } from "./styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Importeer Firebase auth & extra tools om profiel te updaten
