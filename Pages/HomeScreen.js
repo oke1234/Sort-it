@@ -15,7 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles, COLORS} from "./styles";
+import { styles, COLORS} from "../styles";
 import { Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -25,9 +25,9 @@ import {
   stores,
   storeRoutes,
   categoryIcons,
-} from "./shoppingData";
+} from "../shoppingData";
 
-import { getCategory } from "./categoryService";
+import { getCategory } from "../categoryService";
 
 export default function App() {
   const [items, setItems] = useState([]);

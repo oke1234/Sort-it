@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { styles, COLORS } from "./styles";
+import { styles, COLORS } from "../styles";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Importeer Firebase auth
-import { auth } from "./firebaseConfig"; 
+import { auth } from "../firebaseConfig"; 
 import { signInWithEmailAndPassword } from "firebase/auth";
 
 export default function LoginScreen({ navigation }) {
