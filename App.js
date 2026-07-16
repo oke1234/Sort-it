@@ -10,6 +10,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import HomeScreen from "./Pages/HomeScreen";
 import LoginScreen from "./Pages/LoginScreen";
 import CreateAccountScreen from "./Pages/CreateAccount";
+import ProfielScreen from "./Pages/ProfielScreen"
 
 const Stack = createNativeStackNavigator();
 
@@ -41,8 +42,17 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          // Ingelogd? Dan kan de gebruiker alleen bij het startscherm
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <>
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen} 
+            />
+
+            <Stack.Screen 
+              name="Profiel" 
+              component={ProfielScreen} 
+            />
+          </>
         ) : (
           // Niet ingelogd? Dan krijgt de gebruiker de inlog/registratie-schermen
           <>

@@ -461,7 +461,7 @@ export default function App() {
           {/* Profile button */}
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => navigation.navigate("Login")}
+          onPress={() => navigation.navigate("Profiel")}
           activeOpacity={0.85}
         >
           <Ionicons
