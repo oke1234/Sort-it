@@ -33,7 +33,7 @@ export default function ProfielScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container2}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
