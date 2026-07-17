@@ -1,6 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
+  Animated,
   Modal,
   Pressable,
   SectionList,
@@ -11,6 +18,7 @@ import {
   View,
   KeyboardAvoidingView,
   Platform,
+  PanResponder,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -40,6 +48,194 @@ import {
 
 import { getCategory } from "../categoryService";
 
+const DRAG_HOLD_MS = 1500;
+
+function DraggableItemRow({
+  item,
+  isLastItem,
+  isDragging,
+  onToggle,
+  onDelete,
+  onstart,
+  onDragMove,
+  onDragEnd,
+  onDragCancel,
+}) {
+  const longPressActivatedRef = useRef(false);
+  const panActiveRef = useRef(false);
+  const suppressPressRef = useRef(false);
+  const propsRef = useRef({});
+
+  propsRef.current = {
+    item,
+    isDragging,
+    onToggle,
+    onDelete,
+    onstart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+  };
+
+  const clearPressSuppressionSoon = () => {
+    setTimeout(() => {
+      suppressPressRef.current = false;
+    }, 350);
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        if (!longPressActivatedRef.current) return false;
+
+        return (
+          Math.abs(gestureState.dx) > 2 ||
+          Math.abs(gestureState.dy) > 2
+        );
+      },
+
+      onPanResponderGrant: (event) => {
+        panActiveRef.current = true;
+
+        propsRef.current.onDragMove(
+          event.nativeEvent.pageX,
+          event.nativeEvent.pageY
+        );
+      },
+
+      onPanResponderMove: (_, gestureState) => {
+        propsRef.current.onDragMove(
+          gestureState.moveX,
+          gestureState.moveY
+        );
+      },
+
+      onPanResponderRelease: (_, gestureState) => {
+        panActiveRef.current = false;
+        longPressActivatedRef.current = false;
+
+        propsRef.current.onDragEnd(
+          gestureState.moveX,
+          gestureState.moveY
+        );
+
+        clearPressSuppressionSoon();
+      },
+
+      onPanResponderTerminate: () => {
+        panActiveRef.current = false;
+        longPressActivatedRef.current = false;
+
+        propsRef.current.onDragCancel();
+
+        clearPressSuppressionSoon();
+      },
+
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
+    })
+  ).current;
+
+  const handleLongPress = (event) => {
+    longPressActivatedRef.current = true;
+    suppressPressRef.current = true;
+
+    propsRef.current.onstart(
+      item,
+      event.nativeEvent.pageX,
+      event.nativeEvent.pageY
+    );
+  };
+
+  const handlePress = () => {
+    if (
+      suppressPressRef.current ||
+      propsRef.current.isDragging
+    ) {
+      suppressPressRef.current = false;
+      return;
+    }
+
+    propsRef.current.onToggle(item.id);
+  };
+
+  const handlePressOut = () => {
+    setTimeout(() => {
+      if (
+        longPressActivatedRef.current &&
+        !panActiveRef.current
+      ) {
+        longPressActivatedRef.current = false;
+
+        propsRef.current.onDragCancel();
+
+        clearPressSuppressionSoon();
+      }
+    }, 0);
+  };
+
+  return (
+    <View
+      {...panResponder.panHandlers}
+      style={[
+        styles.itemRow,
+        !isLastItem && styles.itemRowBorder,
+        isLastItem && styles.lastItemRow,
+        isDragging && styles.originalItemWhileDragging,
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.itemMain}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        onPressOut={handlePressOut}
+        delayLongPress={DRAG_HOLD_MS}
+        activeOpacity={0.65}
+      >
+        <View
+          style={[
+            styles.checkbox,
+            item.completed && styles.checkboxCompleted,
+          ]}
+        >
+          {item.completed && (
+            <Ionicons
+              name="checkmark"
+              size={16}
+              color="#FFFFFF"
+            />
+          )}
+        </View>
+
+        <Text
+          style={[
+            styles.itemText,
+            item.completed && styles.completedItemText,
+          ]}
+          numberOfLines={2}
+        >
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => propsRef.current.onDelete(item)}
+        style={styles.deleteButton}
+        activeOpacity={0.65}
+        accessibilityLabel={`${item.name} verwijderen`}
+      >
+        <Ionicons
+          name="trash-outline"
+          size={18}
+          color={COLORS.danger}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function App() {
   const [items, setItems] = useState([]);
   const [selectedStore, setSelectedStore] = useState("Lidl");
@@ -47,12 +243,208 @@ export default function App() {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [activeDropCategory, setActiveDropCategory] =
+    useState(null);
+
+  const dragPosition = useRef(
+    new Animated.ValueXY()
+  ).current;
+
+  const overlayRef = useRef(null);
+
+  const overlayOriginRef = useRef({
+    x: 0,
+    y: 0,
+  });
+
+  const categoryDropRefs = useRef({});
+  const categoryZonesRef = useRef({});
+  const draggedItemRef = useRef(null);
+  const activeDropCategoryRef = useRef(null);
 
   const navigation = useNavigation();
 
   const currentStore =
     stores.find((store) => store.name === selectedStore) ??
     stores[0];
+
+  const routeCategories = useMemo(
+    () =>
+      storeRoutes[selectedStore] ??
+      storeRoutes.Lidl,
+    [selectedStore]
+  );
+
+  const measureDropZones = useCallback(() => {
+    overlayRef.current?.measureInWindow((x, y) => {
+      overlayOriginRef.current = {
+        x,
+        y,
+      };
+    });
+
+    const measuredZones = {};
+
+    Object.entries(categoryDropRefs.current).forEach(
+      ([category, categoryRef]) => {
+        categoryRef?.measureInWindow(
+          (x, y, width, height) => {
+            measuredZones[category] = {
+              x,
+              y,
+              width,
+              height,
+            };
+
+            categoryZonesRef.current = {
+              ...categoryZonesRef.current,
+              ...measuredZones,
+            };
+          }
+        );
+      }
+    );
+  }, []);
+
+  const findDropCategory = useCallback(
+    (pageX, pageY) => {
+      return (
+        Object.entries(categoryZonesRef.current).find(
+          ([, zone]) =>
+            pageX >= zone.x &&
+            pageX <= zone.x + zone.width &&
+            pageY >= zone.y &&
+            pageY <= zone.y + zone.height
+        )?.[0] ?? null
+      );
+    },
+    []
+  );
+
+  const resetDrag = useCallback(() => {
+    draggedItemRef.current = null;
+    activeDropCategoryRef.current = null;
+    categoryZonesRef.current = {};
+
+    setDraggedItem(null);
+    setActiveDropCategory(null);
+  }, []);
+
+  const startDraggingItem = useCallback(
+    (item, pageX, pageY) => {
+      draggedItemRef.current = item;
+      activeDropCategoryRef.current = null;
+
+      setDraggedItem(item);
+      setActiveDropCategory(null);
+
+      dragPosition.setValue({
+        x: pageX - 115,
+        y: pageY - 28,
+      });
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(measureDropZones);
+      });
+    },
+    [dragPosition, measureDropZones]
+  );
+
+  const moveDraggingItem = useCallback(
+    (pageX, pageY) => {
+      if (!draggedItemRef.current) return;
+
+      const {
+        x: overlayX,
+        y: overlayY,
+      } = overlayOriginRef.current;
+
+      dragPosition.setValue({
+        x: pageX - overlayX - 115,
+        y: pageY - overlayY - 28,
+      });
+
+      const nextCategory = findDropCategory(
+        pageX,
+        pageY
+      );
+
+      if (
+        nextCategory !==
+        activeDropCategoryRef.current
+      ) {
+        activeDropCategoryRef.current =
+          nextCategory;
+
+        setActiveDropCategory(nextCategory);
+      }
+    },
+    [dragPosition, findDropCategory]
+  );
+
+  const updateItemCategory = useCallback(
+    async (itemId, category) => {
+      const user = auth.currentUser;
+
+      if (!user) return;
+
+      try {
+        await update(
+          ref(
+            db,
+            `users/${user.uid}/shoppingList/items/${itemId}`
+          ),
+          {
+            category,
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Categorie wijzigen mislukt:",
+          error
+        );
+
+        Alert.alert(
+          "Fout",
+          "Het product kon niet naar de andere categorie worden verplaatst."
+        );
+      }
+    },
+    []
+  );
+
+  const finishDraggingItem = useCallback(
+    async (pageX, pageY) => {
+      const item = draggedItemRef.current;
+
+      const dropCategory =
+        findDropCategory(pageX, pageY) ??
+        activeDropCategoryRef.current;
+
+      resetDrag();
+
+      if (
+        item &&
+        dropCategory &&
+        dropCategory !== item.category
+      ) {
+        await updateItemCategory(
+          item.id,
+          dropCategory
+        );
+      }
+    },
+    [
+      findDropCategory,
+      resetDrag,
+      updateItemCategory,
+    ]
+  );
+
+  const cancelDraggingItem = useCallback(() => {
+    resetDrag();
+  }, [resetDrag]);
 
   useEffect(() => {
     let stopDatabase = null;
@@ -383,9 +775,8 @@ export default function App() {
   const completedCount = items.length - openCount;
 
   const sections = useMemo(() => {
-    const route = storeRoutes[selectedStore] ?? storeRoutes.Lidl;
 
-    return route
+    return routeCategories
       .map((category) => {
         const categoryItems = items
           .filter((item) => item.category === category)
@@ -414,64 +805,34 @@ export default function App() {
 
         // Daarna originele winkelvolgorde behouden
         return (
-          route.indexOf(a.title) -
-          route.indexOf(b.title)
+          routeCategories.indexOf(a.title) -
+          routeCategories.indexOf(b.title)
         );
       });
-  }, [items, selectedStore]);
+  }, [items, routeCategories]);
 
-  const renderItem = ({ item, index, section }) => {
-    const isLastItem = index === section.data.length - 1;
+  const renderItem = ({
+    item,
+    index,
+    section,
+  }) => {
+    const isLastItem =
+      index === section.data.length - 1;
 
     return (
-      <View
-        style={[
-          styles.itemRow,
-          !isLastItem && styles.itemRowBorder,
-          isLastItem && styles.lastItemRow,
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.itemMain}
-          onPress={() => toggleItem(item.id)}
-          onLongPress={() => confirmRemoveItem(item)}
-          activeOpacity={0.65}
-        >
-          <View
-            style={[
-              styles.checkbox,
-              item.completed && styles.checkboxCompleted,
-            ]}
-          >
-            {item.completed && (
-              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-            )}
-          </View>
-
-          <Text
-            style={[
-              styles.itemText,
-              item.completed && styles.completedItemText,
-            ]}
-            numberOfLines={2}
-          >
-            {item.name}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => confirmRemoveItem(item)}
-          style={styles.deleteButton}
-          activeOpacity={0.65}
-          accessibilityLabel={`${item.name} verwijderen`}
-        >
-          <Ionicons
-            name="trash-outline"
-            size={18}
-            color={COLORS.danger}
-          />
-        </TouchableOpacity>
-      </View>
+      <DraggableItemRow
+        item={item}
+        isLastItem={isLastItem}
+        isDragging={
+          draggedItem?.id === item.id
+        }
+        onToggle={toggleItem}
+        onDelete={confirmRemoveItem}
+        onstart={startDraggingItem}
+        onDragMove={moveDraggingItem}
+        onDragEnd={finishDraggingItem}
+        onDragCancel={cancelDraggingItem}
+      />
     );
   };
 
@@ -617,6 +978,7 @@ export default function App() {
           ListEmptyComponent={renderEmptyList}
           stickySectionHeadersEnabled={false}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={!draggedItem}
           contentContainerStyle={[
             styles.listContent,
             sections.length === 0 && styles.emptyListContent,
@@ -647,6 +1009,108 @@ export default function App() {
           </TouchableOpacity>
         )}
       </View>
+
+      {draggedItem && (
+        <View
+          ref={overlayRef}
+          style={styles.dragOverlay}
+          pointerEvents="none"
+          onLayout={measureDropZones}
+        >
+          <View style={styles.dragBackdrop} />
+
+          <View style={styles.dragPanel}>
+            <Text style={styles.dragTitle}>
+              Sleep naar een categorie
+            </Text>
+
+            <Text style={styles.dragText}>
+              Laat los boven de juiste afdeling
+            </Text>
+
+            <View style={styles.categoryGrid}>
+              {routeCategories.map((category) => {
+                const isActive =
+                  activeDropCategory === category;
+
+                const isCurrent =
+                  draggedItem.category === category;
+
+                return (
+                  <View
+                    key={category}
+                    ref={(node) => {
+                      categoryDropRefs.current[
+                        category
+                      ] = node;
+                    }}
+                    style={[
+                      styles.categoryDropTarget,
+                      isCurrent &&
+                        styles.currentCategoryTarget,
+                      isActive &&
+                        styles.activeCategoryTarget,
+                    ]}
+                  >
+                    <View
+                      style={
+                        styles.categoryTargetIcon
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          categoryIcons[category] ??
+                          "basket-outline"
+                        }
+                        size={16}
+                        color={
+                          isActive
+                            ? "#FFFFFF"
+                            : COLORS.primary
+                        }
+                      />
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.categoryTargetText,
+                        isActive &&
+                          styles.activeCategoryTargetText,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {category}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <Animated.View
+            style={[
+              styles.floatingItem,
+              {
+                transform:
+                  dragPosition.getTranslateTransform(),
+              },
+            ]}
+          >
+            <Ionicons
+              name="reorder-three-outline"
+              size={22}
+              color={COLORS.primary}
+            />
+
+            <Text
+              style={styles.floatingItemText}
+              numberOfLines={1}
+            >
+              {draggedItem.name}
+            </Text>
+          </Animated.View>
+        </View>
+      )}
 
       <Modal
         visible={itemModalVisible}

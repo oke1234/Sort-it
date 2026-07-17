@@ -582,4 +582,128 @@ export const styles = StyleSheet.create({
     color: COLORS.primaryDark,
     fontWeight: "900",
   },
+
+  originalItemWhileDragging: {
+    opacity: 0.25,
+  },
+
+  dragOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
+
+  dragBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 18, 0.58)",
+  },
+
+  dragPanel: {
+    position: "absolute",
+    top: 18,
+    left: 14,
+    right: 14,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+  },
+
+  dragTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.text,
+    textAlign: "center",
+  },
+
+  dragText: {
+    marginTop: 3,
+    marginBottom: 12,
+    fontSize: 13,
+    color: COLORS.textSoft,
+    textAlign: "center",
+  },
+
+  categoryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 8,
+  },
+
+  categoryDropTarget: {
+    width: "48.5%",
+    minHeight: 48,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: "#DDE6E0",
+    borderRadius: 13,
+    backgroundColor: "#F8FAF8",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  currentCategoryTarget: {
+    borderColor: "#B9C8BF",
+  },
+
+  activeCategoryTarget: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+    transform: [
+      {
+        scale: 1.03,
+      },
+    ],
+  },
+
+  categoryTargetIcon: {
+    width: 28,
+    height: 28,
+    marginRight: 7,
+    borderRadius: 9,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  categoryTargetText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
+  activeCategoryTargetText: {
+    color: "#FFFFFF",
+  },
+
+  floatingItem: {
+    position: "absolute",
+    width: 230,
+    height: 56,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 12,
+  },
+
+  floatingItemText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
 });
