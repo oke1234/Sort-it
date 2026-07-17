@@ -48,7 +48,7 @@ import {
 
 import { getCategory } from "../categoryService";
 
-const DRAG_HOLD_MS = 1500;
+const DRAG_HOLD_MS = 500;
 
 function DraggableItemRow({
   item,
@@ -87,13 +87,12 @@ function DraggableItemRow({
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
 
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        if (!longPressActivatedRef.current) return false;
+      onMoveShouldSetPanResponder: () => {
+        return longPressActivatedRef.current;
+      },
 
-        return (
-          Math.abs(gestureState.dx) > 2 ||
-          Math.abs(gestureState.dy) > 2
-        );
+      onMoveShouldSetPanResponderCapture: () => {
+        return longPressActivatedRef.current;
       },
 
       onPanResponderGrant: (event) => {
@@ -161,21 +160,6 @@ function DraggableItemRow({
     propsRef.current.onToggle(item.id);
   };
 
-  const handlePressOut = () => {
-    setTimeout(() => {
-      if (
-        longPressActivatedRef.current &&
-        !panActiveRef.current
-      ) {
-        longPressActivatedRef.current = false;
-
-        propsRef.current.onDragCancel();
-
-        clearPressSuppressionSoon();
-      }
-    }, 0);
-  };
-
   return (
     <View
       {...panResponder.panHandlers}
@@ -190,8 +174,13 @@ function DraggableItemRow({
         style={styles.itemMain}
         onPress={handlePress}
         onLongPress={handleLongPress}
-        onPressOut={handlePressOut}
         delayLongPress={DRAG_HOLD_MS}
+        pressRetentionOffset={{
+          top: 50,
+          bottom: 50,
+          left: 50,
+          right: 50,
+        }}
         activeOpacity={0.65}
       >
         <View
@@ -979,6 +968,7 @@ export default function App() {
           stickySectionHeadersEnabled={false}
           showsVerticalScrollIndicator={false}
           scrollEnabled={!draggedItem}
+          removeClippedSubviews={false}
           contentContainerStyle={[
             styles.listContent,
             sections.length === 0 && styles.emptyListContent,
@@ -1013,6 +1003,7 @@ export default function App() {
       {draggedItem && (
         <View
           ref={overlayRef}
+          collapsable={false}
           style={styles.dragOverlay}
           pointerEvents="none"
           onLayout={measureDropZones}
@@ -1039,6 +1030,7 @@ export default function App() {
                 return (
                   <View
                     key={category}
+                    collapsable={false}
                     ref={(node) => {
                       categoryDropRefs.current[
                         category
