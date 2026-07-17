@@ -33,123 +33,124 @@ export default function ProfielScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container2}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={26}
-            color={COLORS.text}
-          />
-        </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={26}
+              color={COLORS.text}
+            />
+          </TouchableOpacity>
 
-        <Text style={styles.simpleEyebrow}>
-          PROFILE
-        </Text>
-
-        <Text style={styles.simpleTitle}>
-          Mijn profiel
-        </Text>
-      </View>
-
-
-      {/* Avatar */}
-      <View style={styles.avatarContainer}>
-        <Ionicons
-          name="person-circle"
-          size={110}
-          color={COLORS.primary}
-        />
-      </View>
-
-
-      {/* User info */}
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>
-          Naam
-        </Text>
-
-        <Text style={styles.value}>
-          {user?.displayName || "Gebruiker"}
-        </Text>
-      </View>
-
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>
-          E-mailadres
-        </Text>
-
-        <Text style={styles.value}>
-          {user?.email || "Geen e-mailadres"}
-        </Text>
-      </View>
-
-
-      {/* Settings */}
-      <View style={styles.settingsCard}>
-
-        <TouchableOpacity style={styles.settingRow}>
-          <Ionicons
-            name="mail-outline"
-            size={22}
-            color={COLORS.primary}
-          />
-
-          <Text style={styles.settingText}>
-            E-mailadres
+          <Text style={styles.simpleEyebrow}>
+            PROFILE
           </Text>
-        </TouchableOpacity>
 
-
-        <TouchableOpacity style={styles.settingRow}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={22}
-            color={COLORS.primary}
-          />
-
-          <Text style={styles.settingText}>
-            Wachtwoord wijzigen (later)
-          </Text>
-        </TouchableOpacity>
-
-
-        <View style={styles.settingRow}>
-          <Ionicons
-            name="information-circle-outline"
-            size={22}
-            color={COLORS.primary}
-          />
-
-          <Text style={styles.settingText}>
-            App versie 1.0.0
+          <Text style={styles.simpleTitle}>
+            Mijn profiel
           </Text>
         </View>
 
+
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
+          <Ionicons
+            name="person-circle"
+            size={110}
+            color={COLORS.primary}
+          />
+        </View>
+
+
+        {/* User info */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>
+            Naam
+          </Text>
+
+          <Text style={styles.value}>
+            {user?.displayName || "Gebruiker"}
+          </Text>
+        </View>
+
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>
+            E-mailadres
+          </Text>
+
+          <Text style={styles.value}>
+            {user?.email || "Geen e-mailadres"}
+          </Text>
+        </View>
+
+
+        {/* Settings */}
+        <View style={styles.settingsCard}>
+
+          <TouchableOpacity style={styles.settingRow}>
+            <Ionicons
+              name="mail-outline"
+              size={22}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.settingText}>
+              E-mailadres
+            </Text>
+          </TouchableOpacity>
+
+
+          <TouchableOpacity style={styles.settingRow}>
+            <Ionicons
+              name="lock-closed-outline"
+              size={22}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.settingText}>
+              Wachtwoord wijzigen (later)
+            </Text>
+          </TouchableOpacity>
+
+
+          <View style={styles.settingRow}>
+            <Ionicons
+              name="information-circle-outline"
+              size={22}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.settingText}>
+              App versie 1.0.0
+            </Text>
+          </View>
+
+        </View>
+
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={handleLogout}
+        >
+          <Ionicons
+            name="log-out-outline"
+            size={21}
+            color="#FFF"
+          />
+
+          <Text style={styles.saveButtonText}>
+            Log uit
+          </Text>
+        </TouchableOpacity>
       </View>
-
-
-      {/* Logout */}
-      <TouchableOpacity
-        style={styles.saveButton}
-        onPress={handleLogout}
-      >
-        <Ionicons
-          name="log-out-outline"
-          size={21}
-          color="#FFF"
-        />
-
-        <Text style={styles.saveButtonText}>
-          Log uit
-        </Text>
-      </TouchableOpacity>
-
     </SafeAreaView>
   );
 }

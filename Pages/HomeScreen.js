@@ -273,22 +273,19 @@ export default function App() {
       };
     });
 
-    const measuredZones = {};
+    categoryZonesRef.current = {};
 
     Object.entries(categoryDropRefs.current).forEach(
       ([category, categoryRef]) => {
-        categoryRef?.measureInWindow(
+        if (!categoryRef) return;
+
+        categoryRef.measureInWindow(
           (x, y, width, height) => {
-            measuredZones[category] = {
+            categoryZonesRef.current[category] = {
               x,
               y,
               width,
               height,
-            };
-
-            categoryZonesRef.current = {
-              ...categoryZonesRef.current,
-              ...measuredZones,
             };
           }
         );
@@ -334,7 +331,13 @@ export default function App() {
       });
 
       requestAnimationFrame(() => {
-        requestAnimationFrame(measureDropZones);
+        requestAnimationFrame(() => {
+          measureDropZones();
+
+          setTimeout(() => {
+            measureDropZones();
+          }, 150);
+        });
       });
     },
     [dragPosition, measureDropZones]
@@ -408,8 +411,8 @@ export default function App() {
       const item = draggedItemRef.current;
 
       const dropCategory =
-        findDropCategory(pageX, pageY) ??
-        activeDropCategoryRef.current;
+        activeDropCategoryRef.current ??
+        findDropCategory(pageX, pageY);
 
       resetDrag();
 
@@ -1032,9 +1035,26 @@ export default function App() {
                     key={category}
                     collapsable={false}
                     ref={(node) => {
-                      categoryDropRefs.current[
-                        category
-                      ] = node;
+                      categoryDropRefs.current[category] = node;
+                    }}
+                    onLayout={() => {
+                      setTimeout(() => {
+                        const node =
+                          categoryDropRefs.current[category];
+
+                        node?.measureInWindow(
+                          (x, y, width, height) => {
+                            categoryZonesRef.current[
+                              category
+                            ] = {
+                              x,
+                              y,
+                              width,
+                              height,
+                            };
+                          }
+                        );
+                      }, 50);
                     }}
                     style={[
                       styles.categoryDropTarget,
