@@ -18,6 +18,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { styles, COLORS} from "../styles";
 import { Image } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { onAuthStateChanged } from "firebase/auth";
+
+import {
+  onValue,
+  ref,
+  set,
+  update,
+  remove,
+} from "firebase/database";
+
+import { auth, db } from "../firebaseConfig";
 
 import {
   STORAGE_KEY,
@@ -44,7 +55,69 @@ export default function App() {
     stores[0];
 
   useEffect(() => {
-    loadData();
+    let stopDatabase = null;
+
+    const stopAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (stopDatabase) {
+        stopDatabase();
+        stopDatabase = null;
+      }
+
+      if (!currentUser) {
+        setItems([]);
+        setSelectedStore("Lidl");
+        setLoaded(true);
+        return;
+      }
+
+      setLoaded(false);
+
+      const shoppingListRef = ref(
+        db,
+        `users/${currentUser.uid}/shoppingList`
+      );
+
+      stopDatabase = onValue(
+        shoppingListRef,
+        (snapshot) => {
+          const data = snapshot.val() ?? {};
+          const savedItems = data.items ?? {};
+
+          setItems(Object.values(savedItems));
+
+          const savedStore = data.selectedStore;
+
+          if (
+            savedStore &&
+            stores.some((store) => store.name === savedStore)
+          ) {
+            setSelectedStore(savedStore);
+          } else {
+            setSelectedStore("Lidl");
+          }
+
+          setLoaded(true);
+        },
+        (error) => {
+          console.error("Firebase laden mislukt:", error);
+
+          Alert.alert(
+            "Fout",
+            "De boodschappen konden niet worden geladen."
+          );
+
+          setLoaded(true);
+        }
+      );
+    });
+
+    return () => {
+      if (stopDatabase) {
+        stopDatabase();
+      }
+
+      stopAuth();
+    };
   }, []);
 
   useEffect(() => {
@@ -100,8 +173,18 @@ export default function App() {
 
   const addItem = async () => {
     const cleanedName = newItem.trim();
+    const user = auth.currentUser;
 
     if (!cleanedName) return;
+
+    if (!user) {
+      Alert.alert(
+        "Niet ingelogd",
+        "Log eerst in om een product toe te voegen."
+      );
+
+      return;
+    }
 
     try {
       const category = await getCategory(
@@ -109,26 +192,23 @@ export default function App() {
         selectedStore
       );
 
-      console.log(
-        "Product:",
-        cleanedName,
-        "Categorie:",
-        category
-      );
-
       const item = {
-        id: `${Date.now()}-${Math.random()
+        id: `${Date.now()}${Math.random()
           .toString(36)
           .slice(2, 8)}`,
         name: cleanedName,
         category,
         completed: false,
+        createdAt: Date.now(),
       };
 
-      setItems((currentItems) => [
-        ...currentItems,
-        item,
-      ]);
+      await set(
+        ref(
+          db,
+          `users/${user.uid}/shoppingList/items/${item.id}`
+        ),
+        item
+      );
 
       closeItemModal();
     } catch (error) {
@@ -144,20 +224,84 @@ export default function App() {
     }
   };
 
-  const toggleItem = (id) => {
-    setItems((currentItems) =>
-      currentItems.map((item) =>
-        item.id === id
-          ? { ...item, completed: !item.completed }
-          : item
-      )
-    );
+  const toggleItem = async (id) => {
+    const user = auth.currentUser;
+    const item = items.find((currentItem) => currentItem.id === id);
+
+    if (!user || !item) return;
+
+    try {
+      await update(
+        ref(
+          db,
+          `users/${user.uid}/shoppingList/items/${id}`
+        ),
+        {
+          completed: !item.completed,
+        }
+      );
+    } catch (error) {
+      console.error("Product bijwerken mislukt:", error);
+
+      Alert.alert(
+        "Fout",
+        "Het product kon niet worden bijgewerkt."
+      );
+    }
   };
 
-  const removeItem = (id) => {
-    setItems((currentItems) =>
-      currentItems.filter((item) => item.id !== id)
-    );
+  const removeItem = async (id) => {
+    const user = auth.currentUser;
+
+    if (!user) return;
+
+    try {
+      await remove(
+        ref(
+          db,
+          `users/${user.uid}/shoppingList/items/${id}`
+        )
+      );
+    } catch (error) {
+      console.error("Product verwijderen mislukt:", error);
+
+      Alert.alert(
+        "Fout",
+        "Het product kon niet worden verwijderd."
+      );
+    }
+  };
+
+  const selectStore = async (storeName) => {
+    const user = auth.currentUser;
+
+    if (!user) {
+      Alert.alert(
+        "Niet ingelogd",
+        "Log eerst in om een supermarkt te kiezen."
+      );
+
+      return;
+    }
+
+    try {
+      await set(
+        ref(
+          db,
+          `users/${user.uid}/shoppingList/selectedStore`
+        ),
+        storeName
+      );
+
+      setStoreModalVisible(false);
+    } catch (error) {
+      console.error("Supermarkt opslaan mislukt:", error);
+
+      Alert.alert(
+        "Fout",
+        "De supermarkt kon niet worden opgeslagen."
+      );
+    }
   };
 
   const confirmRemoveItem = (item) => {
@@ -199,10 +343,32 @@ export default function App() {
         {
           text: "Verwijderen",
           style: "destructive",
-          onPress: () => {
-            setItems((currentItems) =>
-              currentItems.filter((item) => !item.completed)
-            );
+          onPress: async () => {
+            const user = auth.currentUser;
+
+            if (!user) return;
+
+            try {
+              const completedItems = items.filter((item) => item.completed);
+
+              await Promise.all(
+                completedItems.map((item) =>
+                  remove(
+                    ref(
+                      db,
+                      `users/${user.uid}/shoppingList/items/${item.id}`
+                    )
+                  )
+                )
+              );
+            } catch (error) {
+              console.error("Lijst opruimen mislukt:", error);
+
+              Alert.alert(
+                "Fout",
+                "De afgevinkte producten konden niet worden verwijderd."
+              );
+            }
           },
         },
       ]
@@ -609,10 +775,7 @@ export default function App() {
                       styles.storeOption,
                       selected && styles.storeOptionSelected,
                     ]}
-                    onPress={() => {
-                      setSelectedStore(store.name);
-                      setStoreModalVisible(false);
-                    }}
+                    onPress={() => selectStore(store.name)}
                     activeOpacity={0.75}
                   >
                     <Image
