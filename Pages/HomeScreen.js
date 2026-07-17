@@ -273,8 +273,6 @@ export default function App() {
       };
     });
 
-    categoryZonesRef.current = {};
-
     Object.entries(categoryDropRefs.current).forEach(
       ([category, categoryRef]) => {
         if (!categoryRef) return;
