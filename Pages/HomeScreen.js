@@ -64,6 +64,7 @@ function DraggableItemRow({
   const longPressActivatedRef = useRef(false);
   const panActiveRef = useRef(false);
   const suppressPressRef = useRef(false);
+  const lastPointerPositionRef = useRef({ x: 0, y: 0 });
   const propsRef = useRef({});
 
   propsRef.current = {
@@ -98,6 +99,11 @@ function DraggableItemRow({
       onPanResponderGrant: (event) => {
         panActiveRef.current = true;
 
+        lastPointerPositionRef.current = {
+          x: event.nativeEvent.pageX,
+          y: event.nativeEvent.pageY,
+        };
+
         propsRef.current.onDragMove(
           event.nativeEvent.pageX,
           event.nativeEvent.pageY
@@ -105,19 +111,33 @@ function DraggableItemRow({
       },
 
       onPanResponderMove: (_, gestureState) => {
+        lastPointerPositionRef.current = {
+          x: gestureState.moveX,
+          y: gestureState.moveY,
+        };
+
         propsRef.current.onDragMove(
           gestureState.moveX,
           gestureState.moveY
         );
       },
 
-      onPanResponderRelease: (_, gestureState) => {
+      onPanResponderRelease: (event, gestureState) => {
         panActiveRef.current = false;
         longPressActivatedRef.current = false;
 
+        const pageX =
+          event.nativeEvent.pageX ||
+          gestureState.moveX ||
+          lastPointerPositionRef.current.x;
+        const pageY =
+          event.nativeEvent.pageY ||
+          gestureState.moveY ||
+          lastPointerPositionRef.current.y;
+
         propsRef.current.onDragEnd(
-          gestureState.moveX,
-          gestureState.moveY
+          pageX,
+          pageY
         );
 
         clearPressSuppressionSoon();
@@ -140,6 +160,10 @@ function DraggableItemRow({
   const handleLongPress = (event) => {
     longPressActivatedRef.current = true;
     suppressPressRef.current = true;
+    lastPointerPositionRef.current = {
+      x: event.nativeEvent.pageX,
+      y: event.nativeEvent.pageY,
+    };
 
     propsRef.current.onstart(
       item,
