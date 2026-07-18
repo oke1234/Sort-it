@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   PanResponder,
 } from "react-native";
@@ -60,6 +61,7 @@ function DraggableItemRow({
   onDragMove,
   onDragEnd,
   onDragCancel,
+  dropRef,
 }) {
   const longPressActivatedRef = useRef(false);
   const panActiveRef = useRef(false);
@@ -110,15 +112,22 @@ function DraggableItemRow({
         );
       },
 
-      onPanResponderMove: (_, gestureState) => {
+      onPanResponderMove: (event, gestureState) => {
+        const pageX = Number.isFinite(event.nativeEvent.pageX)
+          ? event.nativeEvent.pageX
+          : gestureState.moveX;
+        const pageY = Number.isFinite(event.nativeEvent.pageY)
+          ? event.nativeEvent.pageY
+          : gestureState.moveY;
+
         lastPointerPositionRef.current = {
-          x: gestureState.moveX,
-          y: gestureState.moveY,
+          x: pageX,
+          y: pageY,
         };
 
         propsRef.current.onDragMove(
-          gestureState.moveX,
-          gestureState.moveY
+          pageX,
+          pageY
         );
       },
 
@@ -186,6 +195,7 @@ function DraggableItemRow({
 
   return (
     <View
+      ref={dropRef}
       {...panResponder.panHandlers}
       style={[
         styles.itemRow,
@@ -273,6 +283,8 @@ export default function App() {
 
   const categoryDropRefs = useRef({});
   const categoryZonesRef = useRef({});
+  const listCategoryDropRefs = useRef({});
+  const listCategoryZonesRef = useRef({});
   const draggedItemRef = useRef(null);
   const activeDropCategoryRef = useRef(null);
 
@@ -289,8 +301,24 @@ export default function App() {
     [selectedStore]
   );
 
+  const measureInDragCoordinates = useCallback(
+    (node, callback) => {
+      if (!node) return;
+
+      node.measure((x, y, width, height, pageX, pageY) => {
+        callback(
+          Number.isFinite(pageX) ? pageX : x,
+          Number.isFinite(pageY) ? pageY : y,
+          width,
+          height
+        );
+      });
+    },
+    []
+  );
+
   const measureDropZones = useCallback(() => {
-    overlayRef.current?.measureInWindow((x, y) => {
+    measureInDragCoordinates(overlayRef.current, (x, y) => {
       overlayOriginRef.current = {
         x,
         y,
@@ -301,7 +329,8 @@ export default function App() {
       ([category, categoryRef]) => {
         if (!categoryRef) return;
 
-        categoryRef.measureInWindow(
+        measureInDragCoordinates(
+          categoryRef,
           (x, y, width, height) => {
             categoryZonesRef.current[category] = {
               x,
@@ -313,19 +342,75 @@ export default function App() {
         );
       }
     );
-  }, []);
+  }, [measureInDragCoordinates]);
+
+  const measureVisibleListDropZones = useCallback(() => {
+    listCategoryZonesRef.current = {};
+
+    Object.entries(listCategoryDropRefs.current).forEach(
+      ([category, nodesById]) => {
+        Object.values(nodesById).forEach((node) => {
+          if (!node) return;
+
+          measureInDragCoordinates(
+            node,
+            (x, y, width, height) => {
+              if (width <= 0 || height <= 0) return;
+
+              const zones =
+                listCategoryZonesRef.current[category] ?? [];
+
+              zones.push({ x, y, width, height });
+              listCategoryZonesRef.current[category] = zones;
+            }
+          );
+        });
+      }
+    );
+  }, [measureInDragCoordinates]);
 
   const findDropCategory = useCallback(
     (pageX, pageY) => {
-      return (
-        Object.entries(categoryZonesRef.current).find(
-          ([, zone]) =>
-            pageX >= zone.x &&
-            pageX <= zone.x + zone.width &&
-            pageY >= zone.y &&
-            pageY <= zone.y + zone.height
-        )?.[0] ?? null
-      );
+      const floatingItem = {
+        left: pageX - 115,
+        right: pageX + 115,
+        top: pageY - 28,
+        bottom: pageY + 28,
+      };
+
+      let bestCategory = null;
+      let largestOverlap = 0;
+
+      const zones = [
+        ...Object.entries(categoryZonesRef.current).map(
+          ([category, zone]) => ({ category, zone })
+        ),
+        ...Object.entries(listCategoryZonesRef.current).flatMap(
+          ([category, categoryZones]) =>
+            categoryZones.map((zone) => ({ category, zone }))
+        ),
+      ];
+
+      zones.forEach(({ category, zone }) => {
+        const overlapWidth = Math.max(
+          0,
+          Math.min(floatingItem.right, zone.x + zone.width) -
+            Math.max(floatingItem.left, zone.x)
+        );
+        const overlapHeight = Math.max(
+          0,
+          Math.min(floatingItem.bottom, zone.y + zone.height) -
+            Math.max(floatingItem.top, zone.y)
+        );
+        const overlap = overlapWidth * overlapHeight;
+
+        if (overlap > largestOverlap) {
+          largestOverlap = overlap;
+          bestCategory = category;
+        }
+      });
+
+      return bestCategory;
     },
     []
   );
@@ -334,6 +419,7 @@ export default function App() {
     draggedItemRef.current = null;
     activeDropCategoryRef.current = null;
     categoryZonesRef.current = {};
+    listCategoryZonesRef.current = {};
 
     setDraggedItem(null);
     setActiveDropCategory(null);
@@ -341,6 +427,8 @@ export default function App() {
 
   const startDraggingItem = useCallback(
     (item, pageX, pageY) => {
+      measureVisibleListDropZones();
+
       draggedItemRef.current = item;
       activeDropCategoryRef.current = null;
 
@@ -362,7 +450,11 @@ export default function App() {
         });
       });
     },
-    [dragPosition, measureDropZones]
+    [
+      dragPosition,
+      measureDropZones,
+      measureVisibleListDropZones,
+    ]
   );
 
   const moveDraggingItem = useCallback(
@@ -582,6 +674,10 @@ export default function App() {
     const user = auth.currentUser;
 
     if (!cleanedName) return;
+
+    if (Platform.OS === "android") {
+      Keyboard.dismiss();
+    }
 
     if (!user) {
       Alert.alert(
@@ -846,12 +942,43 @@ export default function App() {
         onDragMove={moveDraggingItem}
         onDragEnd={finishDraggingItem}
         onDragCancel={cancelDraggingItem}
+        dropRef={(node) => {
+          const categoryRefs =
+            listCategoryDropRefs.current[item.category] ?? {};
+
+          if (node) {
+            categoryRefs[item.id] = node;
+          } else {
+            delete categoryRefs[item.id];
+          }
+
+          listCategoryDropRefs.current[item.category] = categoryRefs;
+        }}
       />
     );
   };
 
   const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
+    <View
+      ref={(node) => {
+        const categoryRefs =
+          listCategoryDropRefs.current[section.title] ?? {};
+
+        if (node) {
+          categoryRefs.__header = node;
+        } else {
+          delete categoryRefs.__header;
+        }
+
+        listCategoryDropRefs.current[section.title] = categoryRefs;
+      }}
+      collapsable={false}
+      style={[
+        styles.sectionHeader,
+        activeDropCategory === section.title &&
+          styles.activeListCategoryHeader,
+      ]}
+    >
       <View style={styles.sectionTitleGroup}>
         <View style={styles.sectionIcon}>
           <Ionicons
@@ -861,7 +988,13 @@ export default function App() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>
+        <Text
+          style={[
+            styles.sectionTitle,
+            activeDropCategory === section.title &&
+              styles.activeListCategoryTitle,
+          ]}
+        >
           {section.title}
         </Text>
       </View>
@@ -1064,7 +1197,8 @@ export default function App() {
                         const node =
                           categoryDropRefs.current[category];
 
-                        node?.measureInWindow(
+                        measureInDragCoordinates(
+                          node,
                           (x, y, width, height) => {
                             categoryZonesRef.current[
                               category
@@ -1155,7 +1289,7 @@ export default function App() {
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "position"}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={0}
         >
           <Pressable

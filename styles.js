@@ -587,6 +587,14 @@ export const styles = StyleSheet.create({
     opacity: 0.25,
   },
 
+  activeListCategoryHeader: {
+    backgroundColor: COLORS.primary,
+  },
+
+  activeListCategoryTitle: {
+    color: "#FFFFFF",
+  },
+
   dragOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
