@@ -35,36 +35,40 @@ function getLocalCategory(itemName, categories) {
 
 export async function getCategory(
   itemName,
-  selectedStore
+  selectedStore,
+  { useApi = true } = {}
 ) {
   const categories =
     storeRoutes[selectedStore] ??
     storeRoutes.Lidl;
 
-  // Eerst lokaal zoeken
   const localCategory = getLocalCategory(
     itemName,
     categories
   );
 
-  if (localCategory) {
-    return localCategory;
+  // Zonder wifi uitsluitend de lokale category-keywords gebruiken.
+  if (!useApi) {
+    return localCategory ?? "Overig";
   }
 
-  // Alleen AI gebruiken als er lokaal niets is gevonden
   if (!OPENAI_API_KEY) {
     console.warn(
       "De OpenAI API sleutel ontbreekt."
     );
 
-    return "Overig";
+    return localCategory ?? "Overig";
   }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
     const response = await fetch(
       "https://api.openai.com/v1/responses",
       {
         method: "POST",
+        signal: controller.signal,
 
         headers: {
           "Content-Type": "application/json",
@@ -122,7 +126,7 @@ export async function getCategory(
         errorText
       );
 
-      return "Overig";
+      return localCategory ?? "Overig";
     }
 
     const data = await response.json();
@@ -156,13 +160,15 @@ export async function getCategory(
       return category;
     }
 
-    return "Overig";
+    return localCategory ?? "Overig";
   } catch (error) {
     console.error(
       "Categorie bepalen mislukt:",
       error
     );
 
-    return "Overig";
+    return localCategory ?? "Overig";
+  } finally {
+    clearTimeout(timeoutId);
   }
 }

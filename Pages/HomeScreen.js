@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles, COLORS} from "../styles";
 import { Image } from "react-native";
@@ -266,6 +267,7 @@ export default function App() {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const networkState = Network.useNetworkState();
   const [draggedItem, setDraggedItem] = useState(null);
   const [activeDropCategory, setActiveDropCategory] =
     useState(null);
@@ -287,8 +289,23 @@ export default function App() {
   const listCategoryZonesRef = useRef({});
   const draggedItemRef = useRef(null);
   const activeDropCategoryRef = useRef(null);
+  const offlineWarningShownRef = useRef(false);
 
   const navigation = useNavigation();
+
+  const networkStatusKnown =
+    Platform.OS === "web"
+      ? typeof networkState.isConnected === "boolean"
+      : networkState.type != null &&
+        networkState.type !== Network.NetworkStateType.UNKNOWN;
+
+  const hasWifi =
+    networkState.isConnected === true &&
+    networkState.isInternetReachable !== false &&
+    (Platform.OS === "web" ||
+      networkState.type === Network.NetworkStateType.WIFI);
+
+  const isWifiUnavailable = networkStatusKnown && !hasWifi;
 
   const currentStore =
     stores.find((store) => store.name === selectedStore) ??
@@ -553,6 +570,20 @@ export default function App() {
   }, [resetDrag]);
 
   useEffect(() => {
+    if (
+      isWifiUnavailable &&
+      !offlineWarningShownRef.current
+    ) {
+      offlineWarningShownRef.current = true;
+
+      Alert.alert(
+        "Geen wifi",
+        "De categorisatie kan zonder wifi minder nauwkeurig zijn. Producten worden lokaal ingedeeld."
+      );
+    }
+  }, [isWifiUnavailable]);
+
+  useEffect(() => {
     let stopDatabase = null;
 
     const stopAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -691,7 +722,8 @@ export default function App() {
     try {
       const category = await getCategory(
         cleanedName,
-        selectedStore
+        selectedStore,
+        { useApi: hasWifi }
       );
 
       const item = {
@@ -704,13 +736,30 @@ export default function App() {
         createdAt: Date.now(),
       };
 
-      await set(
+      setItems((currentItems) => [
+        ...currentItems.filter(
+          (currentItem) => currentItem.id !== item.id
+        ),
+        item,
+      ]);
+
+      set(
         ref(
           db,
           `users/${user.uid}/shoppingList/items/${item.id}`
         ),
         item
-      );
+      ).catch((error) => {
+        console.error(
+          "Product opslaan mislukt:",
+          error
+        );
+
+        Alert.alert(
+          "Fout",
+          "Het product kon niet worden opgeslagen."
+        );
+      });
 
       closeItemModal();
     } catch (error) {
@@ -1039,17 +1088,33 @@ export default function App() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.cleanButton}
-          onPress={clearCompleted}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="checkmark-done-outline"
-            size={20}
-            color={COLORS.primary}
-          />
-        </TouchableOpacity>
+        <View style={styles.simpleHeaderActions}>
+          {isWifiUnavailable && (
+            <View
+              style={styles.offlineIndicator}
+              accessibilityRole="image"
+              accessibilityLabel="Geen wifi"
+            >
+              <Ionicons
+                name="cloud-offline-outline"
+                size={19}
+                color={COLORS.textSoft}
+              />
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.cleanButton}
+            onPress={clearCompleted}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="checkmark-done-outline"
+              size={20}
+              color={COLORS.primary}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <TouchableOpacity

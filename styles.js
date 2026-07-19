@@ -113,6 +113,19 @@ export const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
 
+  simpleHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  offlineIndicator: {
+    width: 28,
+    height: 41,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 4,
+  },
+
   cleanButton: {
     width: 41,
     height: 41,
