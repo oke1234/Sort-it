@@ -13,12 +13,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 // Importeer Firebase auth
 import { auth } from "../firebaseConfig"; 
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sendingResetLink, setSendingResetLink] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -42,6 +46,42 @@ export default function LoginScreen({ navigation }) {
       Alert.alert("Fout", errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const cleanedEmail = email.trim().toLowerCase();
+
+    if (!cleanedEmail) {
+      Alert.alert(
+        "E-mailadres nodig",
+        "Vul eerst je e-mailadres in om een wachtwoordlink te ontvangen."
+      );
+      return;
+    }
+
+    setSendingResetLink(true);
+    try {
+      auth.languageCode = "nl";
+      await sendPasswordResetEmail(auth, cleanedEmail);
+      Alert.alert(
+        "Wachtwoordlink verstuurd",
+        `Open de e-mail die we naar ${cleanedEmail} hebben gestuurd om een nieuw wachtwoord te kiezen.`
+      );
+    } catch (error) {
+      let errorMessage = "De wachtwoordlink kon niet worden verstuurd.";
+
+      if (error.code === "auth/invalid-email") {
+        errorMessage = "Vul een geldig e-mailadres in.";
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage = "Er zijn te veel verzoeken verstuurd. Probeer het later opnieuw.";
+      } else if (error.code === "auth/network-request-failed") {
+        errorMessage = "Controleer je internetverbinding en probeer het opnieuw.";
+      }
+
+      Alert.alert("Link niet verstuurd", errorMessage);
+    } finally {
+      setSendingResetLink(false);
     }
   };
 
@@ -112,10 +152,31 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <TouchableOpacity
+            style={{ alignSelf: "flex-end", marginTop: 12 }}
+            onPress={handleForgotPassword}
+            disabled={loading || sendingResetLink}
+            activeOpacity={0.75}
+          >
+            {sendingResetLink ? (
+              <ActivityIndicator color={COLORS.primary} />
+            ) : (
+              <Text
+                style={{
+                  color: COLORS.primary,
+                  fontWeight: "700",
+                  fontSize: 14,
+                }}
+              >
+                Wachtwoord vergeten?
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.saveButton, { marginTop: 28 }]}
             activeOpacity={0.8}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || sendingResetLink}
           >
             {loading ? (
               <ActivityIndicator color="#FFF" />

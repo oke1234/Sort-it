@@ -1,268 +1,621 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
+  AppState,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-  SafeAreaView,
+  View,
 } from "react-native";
-
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { signOut } from "firebase/auth";
+import {
+  reload,
+  sendPasswordResetEmail,
+  signOut,
+  updateProfile,
+  verifyBeforeUpdateEmail,
+} from "firebase/auth";
 
 import { auth } from "../firebaseConfig";
 
 const COLORS = {
   background: "#F8F8F8",
   primary: "#4CAF50",
-  text: "#222",
-  gray: "#777",
+  primaryDark: "#2E7D32",
+  primarySoft: "#EAF7EC",
+  text: "#222222",
+  gray: "#707770",
   white: "#FFFFFF",
-  border: "#E5E5E5",
+  border: "#E2E7E3",
+  danger: "#C62828",
+  dangerSoft: "#FFF0F0",
+};
+
+const getAuthErrorMessage = (error) => {
+  switch (error?.code) {
+    case "auth/invalid-email":
+      return "Vul een geldig e-mailadres in.";
+    case "auth/email-already-in-use":
+      return "Dit e-mailadres is al gekoppeld aan een ander account.";
+    case "auth/requires-recent-login":
+      return "Log uit en opnieuw in om deze beveiligde wijziging uit te voeren.";
+    case "auth/too-many-requests":
+      return "Er zijn te veel verzoeken verstuurd. Probeer het later opnieuw.";
+    case "auth/network-request-failed":
+      return "Controleer je internetverbinding en probeer het opnieuw.";
+    case "auth/operation-not-allowed":
+      return "Deze wijziging is nog niet ingeschakeld voor dit account.";
+    case "auth/user-token-expired":
+      return "Je sessie is verlopen. Log opnieuw in en probeer het nogmaals.";
+    default:
+      return "Er is iets misgegaan. Probeer het opnieuw.";
+  }
 };
 
 export default function ProfielScreen({ navigation }) {
   const user = auth.currentUser;
 
-  const handleLogout = async () => {
+  const [name, setName] = useState(user?.displayName || "");
+  const [savedName, setSavedName] = useState(user?.displayName || "");
+  const [currentEmail, setCurrentEmail] = useState(user?.email || "");
+  const [newEmail, setNewEmail] = useState(user?.email || "");
+  const [emailLinkSentTo, setEmailLinkSentTo] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [sendingEmailLink, setSendingEmailLink] = useState(false);
+  const [sendingPasswordLink, setSendingPasswordLink] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const cleanedName = name.trim();
+  const cleanedEmail = newEmail.trim().toLowerCase();
+  const nameIsUnchanged = cleanedName === savedName;
+  const emailIsUnchanged = cleanedEmail === currentEmail.toLowerCase();
+
+  useEffect(() => {
+    const refreshEmail = async () => {
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) return;
+
+      try {
+        await reload(currentUser);
+        const refreshedEmail = currentUser.email || "";
+
+        setCurrentEmail((previousEmail) => {
+          if (refreshedEmail !== previousEmail) {
+            setNewEmail(refreshedEmail);
+            setEmailLinkSentTo("");
+          }
+
+          return refreshedEmail;
+        });
+      } catch {
+        // De huidige gegevens blijven zichtbaar als verversen tijdelijk niet lukt.
+      }
+    };
+
+    const unsubscribeFocus = navigation.addListener("focus", refreshEmail);
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        if (nextAppState === "active") {
+          refreshEmail();
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeFocus();
+      appStateSubscription.remove();
+    };
+  }, [navigation]);
+
+  const handleSaveName = async () => {
+    if (!user) {
+      Alert.alert("Niet ingelogd", "Log opnieuw in om je profiel te wijzigen.");
+      return;
+    }
+
+    if (!cleanedName) {
+      Alert.alert("Naam ontbreekt", "Vul je naam in.");
+      return;
+    }
+
+    setSavingName(true);
     try {
-      await signOut(auth);
+      await updateProfile(user, { displayName: cleanedName });
+      setName(cleanedName);
+      setSavedName(cleanedName);
+      Alert.alert("Naam opgeslagen", "Je naam is succesvol aangepast.");
     } catch (error) {
-      console.log("Logout error:", error);
+      Alert.alert("Naam niet opgeslagen", getAuthErrorMessage(error));
+    } finally {
+      setSavingName(false);
     }
   };
 
+  const handleEmailChange = async () => {
+    if (!user) {
+      Alert.alert("Niet ingelogd", "Log opnieuw in om je e-mailadres te wijzigen.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
+      Alert.alert("Ongeldig e-mailadres", "Vul een geldig e-mailadres in.");
+      return;
+    }
+
+    if (emailIsUnchanged) {
+      Alert.alert(
+        "Geen wijziging",
+        "Vul een ander e-mailadres in dan je huidige adres."
+      );
+      return;
+    }
+
+    setSendingEmailLink(true);
+    try {
+      auth.languageCode = "nl";
+      await verifyBeforeUpdateEmail(user, cleanedEmail);
+      setNewEmail(cleanedEmail);
+      setEmailLinkSentTo(cleanedEmail);
+      Alert.alert(
+        "Bevestigingslink verstuurd",
+        `Open de e-mail die we naar ${cleanedEmail} hebben gestuurd. Je e-mailadres wordt gewijzigd zodra je op de link klikt.`
+      );
+    } catch (error) {
+      Alert.alert("Link niet verstuurd", getAuthErrorMessage(error));
+    } finally {
+      setSendingEmailLink(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!currentEmail) {
+      Alert.alert(
+        "Geen e-mailadres",
+        "Er is geen e-mailadres aan dit account gekoppeld."
+      );
+      return;
+    }
+
+    setSendingPasswordLink(true);
+    try {
+      auth.languageCode = "nl";
+      await sendPasswordResetEmail(auth, currentEmail);
+      Alert.alert(
+        "Wachtwoordlink verstuurd",
+        `Open de e-mail die we naar ${currentEmail} hebben gestuurd om een nieuw wachtwoord te kiezen.`
+      );
+    } catch (error) {
+      Alert.alert("Link niet verstuurd", getAuthErrorMessage(error));
+    } finally {
+      setSendingPasswordLink(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await signOut(auth);
+    } catch (error) {
+      Alert.alert("Uitloggen mislukt", getAuthErrorMessage(error));
+      setLoggingOut(false);
+    }
+  };
+
+  const renderButtonContent = (loading, icon, label, color = COLORS.white) =>
+    loading ? (
+      <ActivityIndicator color={color} />
+    ) : (
+      <>
+        <Ionicons name={icon} size={20} color={color} />
+        <Text style={[styles.buttonText, { color }]}>{label}</Text>
+      </>
+    );
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={26}
-              color={COLORS.text}
-            />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Terug"
+            >
+              <Ionicons name="arrow-back" size={26} color={COLORS.text} />
+            </TouchableOpacity>
 
-          <Text style={styles.simpleEyebrow}>
-            PROFILE
-          </Text>
-
-          <Text style={styles.simpleTitle}>
-            Mijn profiel
-          </Text>
-        </View>
-
-
-        {/* Avatar */}
-        <View style={styles.avatarContainer}>
-          <Ionicons
-            name="person-circle"
-            size={110}
-            color={COLORS.primary}
-          />
-        </View>
-
-
-        {/* User info */}
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>
-            Naam
-          </Text>
-
-          <Text style={styles.value}>
-            {user?.displayName || "Gebruiker"}
-          </Text>
-        </View>
-
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>
-            E-mailadres
-          </Text>
-
-          <Text style={styles.value}>
-            {user?.email || "Geen e-mailadres"}
-          </Text>
-        </View>
-
-
-        {/* Settings */}
-        <View style={styles.settingsCard}>
-
-          <TouchableOpacity style={styles.settingRow}>
-            <Ionicons
-              name="mail-outline"
-              size={22}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.settingText}>
-              E-mailadres
-            </Text>
-          </TouchableOpacity>
-
-
-          <TouchableOpacity style={styles.settingRow}>
-            <Ionicons
-              name="lock-closed-outline"
-              size={22}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.settingText}>
-              Wachtwoord wijzigen (later)
-            </Text>
-          </TouchableOpacity>
-
-
-          <View style={styles.settingRow}>
-            <Ionicons
-              name="information-circle-outline"
-              size={22}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.settingText}>
-              App versie 1.0.0
+            <Text style={styles.eyebrow}>PROFIEL</Text>
+            <Text style={styles.title}>Mijn profiel</Text>
+            <Text style={styles.subtitle}>
+              Beheer je persoonlijke gegevens en accountbeveiliging.
             </Text>
           </View>
 
-        </View>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={46} color={COLORS.primary} />
+            </View>
+            <Text style={styles.avatarName}>{savedName || "Gebruiker"}</Text>
+            <Text style={styles.avatarEmail}>
+              {currentEmail || "Geen e-mailadres"}
+            </Text>
+          </View>
 
+          <Text style={styles.sectionTitle}>Persoonlijke gegevens</Text>
+          <View style={styles.card}>
+            <Text style={styles.label}>Naam</Text>
+            <View style={styles.inputRow}>
+              <Ionicons
+                name="person-outline"
+                size={20}
+                color={COLORS.gray}
+              />
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="Je naam"
+                placeholderTextColor="#98A19B"
+                autoCapitalize="words"
+                autoCorrect={false}
+                maxLength={50}
+                returnKeyType="done"
+                onSubmitEditing={handleSaveName}
+              />
+            </View>
 
-        {/* Logout */}
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleLogout}
-        >
-          <Ionicons
-            name="log-out-outline"
-            size={21}
-            color="#FFF"
-          />
+            <TouchableOpacity
+              style={[
+                styles.primaryButton,
+                (savingName || nameIsUnchanged || !cleanedName) &&
+                  styles.buttonDisabled,
+              ]}
+              onPress={handleSaveName}
+              disabled={savingName || nameIsUnchanged || !cleanedName}
+              activeOpacity={0.82}
+            >
+              {renderButtonContent(
+                savingName,
+                "checkmark-outline",
+                "Naam opslaan"
+              )}
+            </TouchableOpacity>
+          </View>
 
-          <Text style={styles.saveButtonText}>
-            Log uit
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={styles.sectionTitle}>E-mailadres wijzigen</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardText}>
+              Vul je nieuwe e-mailadres in. We sturen een link naar dat adres om
+              de wijziging te bevestigen.
+            </Text>
+
+            <Text style={styles.label}>Nieuw e-mailadres</Text>
+            <View style={styles.inputRow}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.gray} />
+              <TextInput
+                style={styles.input}
+                value={newEmail}
+                onChangeText={(value) => {
+                  setNewEmail(value);
+                  setEmailLinkSentTo("");
+                }}
+                placeholder="naam@voorbeeld.nl"
+                placeholderTextColor="#98A19B"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
+                autoComplete="email"
+                returnKeyType="send"
+                onSubmitEditing={handleEmailChange}
+              />
+            </View>
+
+            {emailLinkSentTo ? (
+              <View style={styles.statusBox}>
+                <Ionicons
+                  name="mail-unread-outline"
+                  size={19}
+                  color={COLORS.primaryDark}
+                />
+                <Text style={styles.statusText}>
+                  Controleer {emailLinkSentTo} en open de bevestigingslink.
+                </Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                styles.outlineButton,
+                (sendingEmailLink || emailIsUnchanged || !cleanedEmail) &&
+                  styles.buttonDisabled,
+              ]}
+              onPress={handleEmailChange}
+              disabled={
+                sendingEmailLink || emailIsUnchanged || !cleanedEmail
+              }
+              activeOpacity={0.82}
+            >
+              {renderButtonContent(
+                sendingEmailLink,
+                "send-outline",
+                "Stuur bevestigingslink",
+                COLORS.primaryDark
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.sectionTitle}>Wachtwoord wijzigen</Text>
+          <View style={styles.card}>
+            <View style={styles.securityHeader}>
+              <View style={styles.securityIcon}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={23}
+                  color={COLORS.primaryDark}
+                />
+              </View>
+              <View style={styles.securityCopy}>
+                <Text style={styles.securityTitle}>Kies een nieuw wachtwoord</Text>
+                <Text style={styles.cardTextNoMargin}>
+                  De veilige resetlink wordt naar {currentEmail || "je e-mail"}
+                  gestuurd.
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.outlineButton,
+                (sendingPasswordLink || !currentEmail) && styles.buttonDisabled,
+              ]}
+              onPress={handlePasswordReset}
+              disabled={sendingPasswordLink || !currentEmail}
+              activeOpacity={0.82}
+            >
+              {renderButtonContent(
+                sendingPasswordLink,
+                "key-outline",
+                "Stuur wachtwoordlink",
+                COLORS.primaryDark
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.logoutButton, loggingOut && styles.buttonDisabled]}
+            onPress={handleLogout}
+            disabled={loggingOut}
+            activeOpacity={0.82}
+          >
+            {renderButtonContent(
+              loggingOut,
+              "log-out-outline",
+              "Log uit",
+              COLORS.danger
+            )}
+          </TouchableOpacity>
+
+          <Text style={styles.version}>SortIt · versie 1.0.0</Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-
 const styles = StyleSheet.create({
-
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  content: {
     paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 36,
   },
-
-
   header: {
-    marginTop: 20,
+    marginBottom: 20,
   },
-
-
   backButton: {
-    marginBottom: 25,
-  },
-
-
-  simpleEyebrow: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: "700",
-    letterSpacing: 2,
-  },
-
-
-  simpleTitle: {
-    fontSize: 34,
-    fontWeight: "800",
-    color: COLORS.text,
-    marginTop: 5,
-  },
-
-
-  avatarContainer: {
-    alignItems: "center",
-    marginVertical: 25,
-  },
-
-
-  inputContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-
-  label: {
-    fontSize: 13,
-    color: COLORS.gray,
-    marginBottom: 6,
-  },
-
-
-  value: {
-    fontSize: 17,
-    color: COLORS.text,
-    fontWeight: "600",
-  },
-
-
-  settingsCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
-    paddingHorizontal: 18,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-
-
-  settingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-
-
-  settingText: {
-    fontSize: 16,
-    color: COLORS.text,
-    marginLeft: 14,
-  },
-
-
-  saveButton: {
-    marginTop: 35,
-    backgroundColor: COLORS.primary,
-    height: 56,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    marginLeft: -9,
+    marginBottom: 17,
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
   },
-
-
-  saveButtonText: {
-    color: "#FFF",
-    fontSize: 17,
+  eyebrow: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+  title: {
+    marginTop: 5,
+    fontSize: 34,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+  subtitle: {
+    marginTop: 8,
+    maxWidth: 360,
+    fontSize: 15,
+    lineHeight: 21,
+    color: COLORS.gray,
+  },
+  avatarContainer: {
+    alignItems: "center",
+    marginBottom: 28,
+  },
+  avatar: {
+    width: 92,
+    height: 92,
+    borderRadius: 30,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#CFE8D3",
+  },
+  avatarName: {
+    marginTop: 13,
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  avatarEmail: {
+    marginTop: 3,
+    fontSize: 14,
+    color: COLORS.gray,
+  },
+  sectionTitle: {
+    marginTop: 8,
+    marginBottom: 9,
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  card: {
+    padding: 18,
+    marginBottom: 20,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  label: {
+    marginBottom: 7,
+    fontSize: 13,
     fontWeight: "700",
-    marginLeft: 10,
+    color: COLORS.gray,
   },
-
+  inputRow: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 15,
+    borderWidth: 1.5,
+    borderColor: "#DCE3DE",
+    borderRadius: 16,
+    backgroundColor: "#FAFBFA",
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: 11,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  cardText: {
+    marginBottom: 17,
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.gray,
+  },
+  cardTextNoMargin: {
+    marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.gray,
+  },
+  primaryButton: {
+    minHeight: 52,
+    marginTop: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+  },
+  outlineButton: {
+    minHeight: 52,
+    marginTop: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#B9D9BF",
+    backgroundColor: COLORS.primarySoft,
+  },
+  buttonDisabled: {
+    opacity: 0.42,
+  },
+  buttonText: {
+    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  statusBox: {
+    marginTop: 12,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderRadius: 13,
+    backgroundColor: COLORS.primarySoft,
+  },
+  statusText: {
+    flex: 1,
+    marginLeft: 9,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.primaryDark,
+  },
+  securityHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  securityIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+  securityCopy: {
+    flex: 1,
+    marginLeft: 13,
+  },
+  securityTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  logoutButton: {
+    minHeight: 54,
+    marginTop: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+    borderWidth: 1.5,
+    borderColor: "#F0C7C7",
+    backgroundColor: COLORS.dangerSoft,
+  },
+  version: {
+    marginTop: 18,
+    textAlign: "center",
+    fontSize: 12,
+    color: "#9AA09B",
+  },
 });
