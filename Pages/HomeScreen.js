@@ -10,8 +10,8 @@ import {
   Animated,
   Modal,
   Pressable,
+  ScrollView,
   SectionList,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -34,8 +34,6 @@ import {
   onValue,
   ref,
   set,
-  update,
-  remove,
 } from "firebase/database";
 
 import { auth, db } from "../firebaseConfig";
@@ -51,6 +49,148 @@ import {
 import { getCategory } from "../categoryService";
 
 const DRAG_HOLD_MS = 500;
+const DEFAULT_LIST_ID = "default";
+const LOCAL_LISTS_KEY = "SHOPPING_LISTS_V2";
+const PENDING_SYNC_KEY = "SHOPPING_LISTS_PENDING_SYNC_V2";
+
+const createId = (prefix = "") =>
+  `${prefix}${Date.now()}${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+const createDefaultList = ({
+  items = [],
+  selectedStore = "Lidl",
+} = {}) => ({
+  id: DEFAULT_LIST_ID,
+  name: "Lijst 1",
+  items,
+  selectedStore,
+  createdAt: Date.now(),
+});
+
+const getUserListsKey = (userId) =>
+  `${LOCAL_LISTS_KEY}:${userId}`;
+
+const normalizeItems = (savedItems) => {
+  if (Array.isArray(savedItems)) {
+    return savedItems.filter((item) => item?.id);
+  }
+
+  return Object.values(savedItems ?? {}).filter(
+    (item) => item?.id
+  );
+};
+
+const normalizeShoppingLists = (data = {}) => {
+  const savedLists = Object.entries(data.lists ?? {})
+    .filter(
+      ([, list]) =>
+        list && typeof list === "object"
+    )
+    .map(([listId, list], index) => ({
+      id: list.id ?? listId,
+      name: list.name?.trim() || `Lijst ${index + 1}`,
+      items: normalizeItems(list.items),
+      selectedStore: stores.some(
+        (store) => store.name === list.selectedStore
+      )
+        ? list.selectedStore
+        : "Lidl",
+      createdAt: list.createdAt ?? Date.now() + index,
+    }))
+    .sort((a, b) => a.createdAt - b.createdAt);
+
+  const lists =
+    savedLists.length > 0
+      ? savedLists
+      : [
+          createDefaultList({
+            items: normalizeItems(data.items),
+            selectedStore: data.selectedStore,
+          }),
+        ];
+
+  const activeListId = lists.some(
+    (list) => list.id === data.activeListId
+  )
+    ? data.activeListId
+    : lists[0].id;
+
+  return {
+    lists,
+    activeListId,
+  };
+};
+
+const serializeList = (list) => ({
+  id: list.id,
+  name: list.name,
+  selectedStore: list.selectedStore,
+  createdAt: list.createdAt,
+  items: Object.fromEntries(
+    list.items.map((item) => [item.id, item])
+  ),
+});
+
+const applyPendingOperations = (
+  shoppingListData,
+  operations,
+  userId
+) => {
+  const data = JSON.parse(
+    JSON.stringify(shoppingListData ?? {})
+  );
+
+  if (
+    Object.keys(data.lists ?? {}).length === 0 &&
+    (data.items || data.selectedStore)
+  ) {
+    data.lists = {
+      [DEFAULT_LIST_ID]: {
+        id: DEFAULT_LIST_ID,
+        name: "Lijst 1",
+        items: data.items ?? {},
+        selectedStore: data.selectedStore ?? "Lidl",
+        createdAt: 0,
+      },
+    };
+    data.activeListId = DEFAULT_LIST_ID;
+  }
+
+  operations
+    .filter((operation) => operation.userId === userId)
+    .forEach((operation) => {
+      const pathParts = operation.path
+        .split("/")
+        .filter(Boolean);
+
+      if (pathParts.length === 0) return;
+
+      let parent = data;
+
+      pathParts.slice(0, -1).forEach((part) => {
+        if (
+          !parent[part] ||
+          typeof parent[part] !== "object"
+        ) {
+          parent[part] = {};
+        }
+
+        parent = parent[part];
+      });
+
+      const finalPart = pathParts[pathParts.length - 1];
+
+      if (operation.value === null) {
+        delete parent[finalPart];
+      } else {
+        parent[finalPart] = operation.value;
+      }
+    });
+
+  return data;
+};
 
 function DraggableItemRow({
   item,
@@ -261,10 +401,15 @@ function DraggableItemRow({
 }
 
 export default function App() {
-  const [items, setItems] = useState([]);
-  const [selectedStore, setSelectedStore] = useState("Lidl");
+  const [lists, setLists] = useState(() => [
+    createDefaultList(),
+  ]);
+  const [activeListId, setActiveListId] =
+    useState(DEFAULT_LIST_ID);
   const [newItem, setNewItem] = useState("");
+  const [newListName, setNewListName] = useState("");
   const [itemModalVisible, setItemModalVisible] = useState(false);
+  const [listModalVisible, setListModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const networkState = Network.useNetworkState();
@@ -290,8 +435,65 @@ export default function App() {
   const draggedItemRef = useRef(null);
   const activeDropCategoryRef = useRef(null);
   const offlineWarningShownRef = useRef(false);
+  const currentUserIdRef = useRef(null);
+  const pendingOperationsRef = useRef([]);
+  const pendingStorageWriteRef = useRef(
+    Promise.resolve()
+  );
+  const localStorageWriteRef = useRef(
+    Promise.resolve()
+  );
+  const syncInProgressRef = useRef(false);
+  const enqueueFirebaseWriteRef = useRef(null);
+  const flushPendingOperationsRef = useRef(null);
+  const isOfflineRef = useRef(false);
 
   const navigation = useNavigation();
+
+  const activeList =
+    lists.find((list) => list.id === activeListId) ??
+    lists[0];
+
+  const items = activeList?.items ?? [];
+  const selectedStore =
+    activeList?.selectedStore ?? "Lidl";
+
+  const setItems = useCallback(
+    (itemsOrUpdater) => {
+      setLists((currentLists) =>
+        currentLists.map((list) => {
+          if (list.id !== activeListId) return list;
+
+          const nextItems =
+            typeof itemsOrUpdater === "function"
+              ? itemsOrUpdater(list.items)
+              : itemsOrUpdater;
+
+          return {
+            ...list,
+            items: nextItems,
+          };
+        })
+      );
+    },
+    [activeListId]
+  );
+
+  const setSelectedStore = useCallback(
+    (storeName) => {
+      setLists((currentLists) =>
+        currentLists.map((list) =>
+          list.id === activeListId
+            ? {
+                ...list,
+                selectedStore: storeName,
+              }
+            : list
+        )
+      );
+    },
+    [activeListId]
+  );
 
   const networkStatusKnown =
     Platform.OS === "web"
@@ -305,7 +507,12 @@ export default function App() {
     (Platform.OS === "web" ||
       networkState.type === Network.NetworkStateType.WIFI);
 
-  const isWifiUnavailable = networkStatusKnown && !hasWifi;
+  const isOnline =
+    networkStatusKnown &&
+    networkState.isConnected === true &&
+    networkState.isInternetReachable !== false;
+
+  const isOffline = networkStatusKnown && !isOnline;
 
   const currentStore =
     stores.find((store) => store.name === selectedStore) ??
@@ -506,35 +713,153 @@ export default function App() {
     [dragPosition, findDropCategory]
   );
 
+  const persistPendingOperations = useCallback(
+    (operations) => {
+      pendingStorageWriteRef.current =
+        pendingStorageWriteRef.current
+          .catch(() => {})
+          .then(() =>
+            AsyncStorage.setItem(
+              PENDING_SYNC_KEY,
+              JSON.stringify(operations)
+            )
+          );
+
+      return pendingStorageWriteRef.current;
+    },
+    []
+  );
+
+  const flushPendingOperations = useCallback(async () => {
+    const user = auth.currentUser;
+
+    if (
+      !isOnline ||
+      !user ||
+      syncInProgressRef.current
+    ) {
+      return;
+    }
+
+    syncInProgressRef.current = true;
+
+    try {
+      while (auth.currentUser?.uid === user.uid) {
+        const operation =
+          pendingOperationsRef.current.find(
+            (pendingOperation) =>
+              pendingOperation.userId === user.uid
+          );
+
+        if (!operation) break;
+
+        await set(
+          ref(
+            db,
+            `users/${user.uid}/shoppingList/${operation.path}`
+          ),
+          operation.value
+        );
+
+        const nextOperations =
+          pendingOperationsRef.current.filter(
+            (pendingOperation) =>
+              pendingOperation.id !== operation.id
+          );
+
+        pendingOperationsRef.current = nextOperations;
+        await persistPendingOperations(nextOperations);
+      }
+    } catch (error) {
+      console.warn(
+        "Synchroniseren uitgesteld tot er weer internet is:",
+        error
+      );
+    } finally {
+      syncInProgressRef.current = false;
+    }
+  }, [isOnline, persistPendingOperations]);
+
+  const enqueueFirebaseWrite = useCallback(
+    (path, value) => {
+      const userId =
+        currentUserIdRef.current ??
+        auth.currentUser?.uid;
+
+      if (!userId) return;
+
+      const operation = {
+        id: createId("sync-"),
+        userId,
+        path,
+        value,
+      };
+
+      const nextOperations = [
+        ...pendingOperationsRef.current,
+        operation,
+      ];
+
+      pendingOperationsRef.current = nextOperations;
+
+      persistPendingOperations(nextOperations)
+        .then(() => {
+          if (isOnline) {
+            flushPendingOperations();
+          }
+        })
+        .catch((error) => {
+          console.error(
+            "Offline wijziging opslaan mislukt:",
+            error
+          );
+
+          Alert.alert(
+            "Fout",
+            "De wijziging kon niet lokaal worden opgeslagen."
+          );
+        });
+    },
+    [
+      flushPendingOperations,
+      isOnline,
+      persistPendingOperations,
+    ]
+  );
+
+  enqueueFirebaseWriteRef.current =
+    enqueueFirebaseWrite;
+  flushPendingOperationsRef.current =
+    flushPendingOperations;
+  isOfflineRef.current = isOffline;
+
   const updateItemCategory = useCallback(
-    async (itemId, category) => {
+    (itemId, category) => {
       const user = auth.currentUser;
 
       if (!user) return;
 
-      try {
-        await update(
-          ref(
-            db,
-            `users/${user.uid}/shoppingList/items/${itemId}`
-          ),
-          {
-            category,
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Categorie wijzigen mislukt:",
-          error
-        );
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                category,
+              }
+            : item
+        )
+      );
 
-        Alert.alert(
-          "Fout",
-          "Het product kon niet naar de andere categorie worden verplaatst."
-        );
-      }
+      enqueueFirebaseWrite(
+        `lists/${activeListId}/items/${itemId}/category`,
+        category
+      );
     },
-    []
+    [
+      activeListId,
+      enqueueFirebaseWrite,
+      setItems,
+    ]
   );
 
   const finishDraggingItem = useCallback(
@@ -570,77 +895,192 @@ export default function App() {
   }, [resetDrag]);
 
   useEffect(() => {
-    if (
-      isWifiUnavailable &&
-      !offlineWarningShownRef.current
-    ) {
+    if (!isOffline) {
+      offlineWarningShownRef.current = false;
+      return;
+    }
+
+    if (!offlineWarningShownRef.current) {
       offlineWarningShownRef.current = true;
 
       Alert.alert(
-        "Geen wifi",
-        "De categorisatie kan zonder wifi minder nauwkeurig zijn. Producten worden lokaal ingedeeld."
+        "Geen internet",
+        "Producten worden lokaal ingedeeld. Je wijzigingen worden gesynchroniseerd zodra er weer internet is."
       );
     }
-  }, [isWifiUnavailable]);
+  }, [isOffline]);
 
   useEffect(() => {
     let stopDatabase = null;
+    let authSessionId = 0;
 
     const stopAuth = onAuthStateChanged(auth, (currentUser) => {
+      const currentAuthSessionId = ++authSessionId;
+
       if (stopDatabase) {
         stopDatabase();
         stopDatabase = null;
       }
 
       if (!currentUser) {
-        setItems([]);
-        setSelectedStore("Lidl");
+        currentUserIdRef.current = null;
+        setLists([createDefaultList()]);
+        setActiveListId(DEFAULT_LIST_ID);
         setLoaded(true);
         return;
       }
 
+      currentUserIdRef.current = currentUser.uid;
+      setLists([createDefaultList()]);
+      setActiveListId(DEFAULT_LIST_ID);
       setLoaded(false);
 
-      const shoppingListRef = ref(
-        db,
-        `users/${currentUser.uid}/shoppingList`
-      );
+      const loadUserData = async () => {
+        try {
+          const [
+            savedLocalState,
+            savedPendingOperations,
+            legacyItems,
+            legacyStore,
+          ] = await Promise.all([
+            AsyncStorage.getItem(
+              getUserListsKey(currentUser.uid)
+            ),
+            AsyncStorage.getItem(PENDING_SYNC_KEY),
+            AsyncStorage.getItem(STORAGE_KEY),
+            AsyncStorage.getItem(STORE_KEY),
+          ]);
 
-      stopDatabase = onValue(
-        shoppingListRef,
-        (snapshot) => {
-          const data = snapshot.val() ?? {};
-          const savedItems = data.items ?? {};
+          if (currentAuthSessionId !== authSessionId) return;
 
-          setItems(Object.values(savedItems));
+          try {
+            const parsedOperations = JSON.parse(
+              savedPendingOperations ?? "[]"
+            );
 
-          const savedStore = data.selectedStore;
-
-          if (
-            savedStore &&
-            stores.some((store) => store.name === savedStore)
-          ) {
-            setSelectedStore(savedStore);
-          } else {
-            setSelectedStore("Lidl");
+            pendingOperationsRef.current =
+              Array.isArray(parsedOperations)
+                ? parsedOperations
+                : [];
+          } catch {
+            pendingOperationsRef.current = [];
           }
 
-          setLoaded(true);
-        },
-        (error) => {
-          console.error("Firebase laden mislukt:", error);
+          if (savedLocalState) {
+            const localState = normalizeShoppingLists(
+              JSON.parse(savedLocalState)
+            );
 
-          Alert.alert(
-            "Fout",
-            "De boodschappen konden niet worden geladen."
+            setLists(localState.lists);
+            setActiveListId(localState.activeListId);
+          } else if (legacyItems) {
+            const localState = normalizeShoppingLists({
+              items: JSON.parse(legacyItems),
+              selectedStore: legacyStore,
+            });
+
+            setLists(localState.lists);
+            setActiveListId(localState.activeListId);
+          }
+        } catch (error) {
+          console.error(
+            "Lokale boodschappen laden mislukt:",
+            error
           );
-
-          setLoaded(true);
+        } finally {
+          if (currentAuthSessionId === authSessionId) {
+            setLoaded(true);
+          }
         }
-      );
+
+        if (currentAuthSessionId !== authSessionId) return;
+
+        const shoppingListRef = ref(
+          db,
+          `users/${currentUser.uid}/shoppingList`
+        );
+
+        stopDatabase = onValue(
+          shoppingListRef,
+          (snapshot) => {
+            const firebaseData = snapshot.val() ?? {};
+            const mergedData = applyPendingOperations(
+              firebaseData,
+              pendingOperationsRef.current,
+              currentUser.uid
+            );
+            const nextState =
+              normalizeShoppingLists(mergedData);
+
+            setLists(nextState.lists);
+            setActiveListId(nextState.activeListId);
+            setLoaded(true);
+
+            const firebaseLists = Object.values(
+              firebaseData.lists ?? {}
+            );
+            const needsFirebaseListMigration =
+              firebaseLists.length === 0 ||
+              firebaseLists.some((list) => !list?.id);
+
+            if (needsFirebaseListMigration) {
+              nextState.lists.forEach((list) => {
+                const listPath = `lists/${list.id}`;
+                const alreadyQueued =
+                  pendingOperationsRef.current.some(
+                    (operation) =>
+                      operation.userId ===
+                        currentUser.uid &&
+                      operation.path === listPath
+                  );
+
+                if (!alreadyQueued) {
+                  enqueueFirebaseWriteRef.current?.(
+                    listPath,
+                    serializeList(list)
+                  );
+                }
+              });
+
+              const activeListAlreadyQueued =
+                pendingOperationsRef.current.some(
+                  (operation) =>
+                    operation.userId ===
+                      currentUser.uid &&
+                    operation.path === "activeListId"
+                );
+
+              if (!activeListAlreadyQueued) {
+                enqueueFirebaseWriteRef.current?.(
+                  "activeListId",
+                  nextState.activeListId
+                );
+              }
+            }
+          },
+          (error) => {
+            console.error("Firebase laden mislukt:", error);
+
+            if (!isOfflineRef.current) {
+              Alert.alert(
+                "Fout",
+                "De boodschappen konden niet van Firebase worden geladen."
+              );
+            }
+
+            setLoaded(true);
+          }
+        );
+
+        flushPendingOperationsRef.current?.();
+      };
+
+      loadUserData();
     });
 
     return () => {
+      authSessionId += 1;
+
       if (stopDatabase) {
         stopDatabase();
       }
@@ -650,45 +1090,58 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
+    const userId = currentUserIdRef.current;
 
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items)).catch(() => {
-      Alert.alert("Fout", "De boodschappen konden niet worden opgeslagen.");
-    });
-  }, [items, loaded]);
+    if (!loaded || !userId) return;
 
-  useEffect(() => {
-    if (!loaded) return;
-
-    AsyncStorage.setItem(STORE_KEY, selectedStore).catch(() => {
-      Alert.alert("Fout", "De Supermarkt kon niet worden opgeslagen.");
-    });
-  }, [selectedStore, loaded]);
-
-  const loadData = async () => {
-    try {
-      const [savedItems, savedStore] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEY),
-        AsyncStorage.getItem(STORE_KEY),
-      ]);
-
-      if (savedItems) {
-        setItems(JSON.parse(savedItems));
-      }
-
-      const storeExists = stores.some(
-        (store) => store.name === savedStore
+    const writePromise = localStorageWriteRef.current
+      .catch(() => {})
+      .then(() =>
+        Promise.all([
+          AsyncStorage.setItem(
+            getUserListsKey(userId),
+            JSON.stringify({
+              lists,
+              activeListId,
+            })
+          ),
+          AsyncStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(items)
+          ),
+          AsyncStorage.setItem(
+            STORE_KEY,
+            selectedStore
+          ),
+        ])
       );
 
-      if (savedStore && storeExists) {
-        setSelectedStore(savedStore);
-      }
-    } catch {
-      Alert.alert("Fout", "De boodschappen konden niet worden geladen.");
-    } finally {
-      setLoaded(true);
+    localStorageWriteRef.current = writePromise;
+
+    writePromise.catch((error) => {
+      console.error(
+        "Boodschappen lokaal opslaan mislukt:",
+        error
+      );
+
+      Alert.alert(
+        "Fout",
+        "De boodschappen konden niet lokaal worden opgeslagen."
+      );
+    });
+  }, [
+    activeListId,
+    items,
+    lists,
+    loaded,
+    selectedStore,
+  ]);
+
+  useEffect(() => {
+    if (isOnline) {
+      flushPendingOperations();
     }
-  };
+  }, [flushPendingOperations, isOnline]);
 
   const openItemModal = () => {
     setNewItem("");
@@ -727,9 +1180,7 @@ export default function App() {
       );
 
       const item = {
-        id: `${Date.now()}${Math.random()
-          .toString(36)
-          .slice(2, 8)}`,
+        id: createId("item-"),
         name: cleanedName,
         category,
         completed: false,
@@ -743,23 +1194,10 @@ export default function App() {
         item,
       ]);
 
-      set(
-        ref(
-          db,
-          `users/${user.uid}/shoppingList/items/${item.id}`
-        ),
+      enqueueFirebaseWrite(
+        `lists/${activeListId}/items/${item.id}`,
         item
-      ).catch((error) => {
-        console.error(
-          "Product opslaan mislukt:",
-          error
-        );
-
-        Alert.alert(
-          "Fout",
-          "Het product kon niet worden opgeslagen."
-        );
-      });
+      );
 
       closeItemModal();
     } catch (error) {
@@ -781,46 +1219,38 @@ export default function App() {
 
     if (!user || !item) return;
 
-    try {
-      await update(
-        ref(
-          db,
-          `users/${user.uid}/shoppingList/items/${id}`
-        ),
-        {
-          completed: !item.completed,
-        }
-      );
-    } catch (error) {
-      console.error("Product bijwerken mislukt:", error);
+    const completed = !item.completed;
 
-      Alert.alert(
-        "Fout",
-        "Het product kon niet worden bijgewerkt."
-      );
-    }
+    setItems((currentItems) =>
+      currentItems.map((currentItem) =>
+        currentItem.id === id
+          ? {
+              ...currentItem,
+              completed,
+            }
+          : currentItem
+      )
+    );
+
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/items/${id}/completed`,
+      completed
+    );
   };
 
-  const removeItem = async (id) => {
+  const removeItem = (id) => {
     const user = auth.currentUser;
 
     if (!user) return;
 
-    try {
-      await remove(
-        ref(
-          db,
-          `users/${user.uid}/shoppingList/items/${id}`
-        )
-      );
-    } catch (error) {
-      console.error("Product verwijderen mislukt:", error);
+    setItems((currentItems) =>
+      currentItems.filter((item) => item.id !== id)
+    );
 
-      Alert.alert(
-        "Fout",
-        "Het product kon niet worden verwijderd."
-      );
-    }
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/items/${id}`,
+      null
+    );
   };
 
   const selectStore = async (storeName) => {
@@ -835,24 +1265,110 @@ export default function App() {
       return;
     }
 
-    try {
-      await set(
-        ref(
-          db,
-          `users/${user.uid}/shoppingList/selectedStore`
-        ),
-        storeName
-      );
+    setSelectedStore(storeName);
+    setStoreModalVisible(false);
 
-      setStoreModalVisible(false);
-    } catch (error) {
-      console.error("Supermarkt opslaan mislukt:", error);
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/selectedStore`,
+      storeName
+    );
+  };
 
+  const openListModal = () => {
+    setNewListName(`Lijst ${lists.length + 1}`);
+    setListModalVisible(true);
+  };
+
+  const closeListModal = () => {
+    setNewListName("");
+    setListModalVisible(false);
+  };
+
+  const createList = () => {
+    const user = auth.currentUser;
+    const cleanedName = newListName.trim();
+
+    if (!user || !cleanedName) return;
+
+    const list = {
+      id: createId("list-"),
+      name: cleanedName,
+      items: [],
+      selectedStore,
+      createdAt: Date.now(),
+    };
+
+    setLists((currentLists) => [
+      ...currentLists,
+      list,
+    ]);
+    setActiveListId(list.id);
+
+    enqueueFirebaseWrite(
+      `lists/${list.id}`,
+      serializeList(list)
+    );
+    enqueueFirebaseWrite("activeListId", list.id);
+
+    closeListModal();
+  };
+
+  const selectList = (listId) => {
+    if (listId === activeListId) return;
+
+    resetDrag();
+    setActiveListId(listId);
+    enqueueFirebaseWrite("activeListId", listId);
+  };
+
+  const confirmRemoveList = (list) => {
+    if (lists.length === 1) {
       Alert.alert(
-        "Fout",
-        "De supermarkt kon niet worden opgeslagen."
+        "Laatste lijst",
+        "Je moet minimaal één lijst houden."
       );
+      return;
     }
+
+    Alert.alert(
+      "Lijst verwijderen",
+      `Wil je "${list.name}" met alle producten verwijderen?`,
+      [
+        {
+          text: "Annuleren",
+          style: "cancel",
+        },
+        {
+          text: "Verwijderen",
+          style: "destructive",
+          onPress: () => {
+            const remainingLists = lists.filter(
+              (currentList) =>
+                currentList.id !== list.id
+            );
+            const nextActiveListId =
+              list.id === activeListId
+                ? remainingLists[0].id
+                : activeListId;
+
+            setLists(remainingLists);
+            setActiveListId(nextActiveListId);
+
+            enqueueFirebaseWrite(
+              `lists/${list.id}`,
+              null
+            );
+
+            if (nextActiveListId !== activeListId) {
+              enqueueFirebaseWrite(
+                "activeListId",
+                nextActiveListId
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   const confirmRemoveItem = (item) => {
@@ -874,7 +1390,10 @@ export default function App() {
   };
 
   const clearCompleted = () => {
-    const completedCount = items.filter((item) => item.completed).length;
+    const completedItems = items.filter(
+      (item) => item.completed
+    );
+    const completedCount = completedItems.length;
 
     if (completedCount === 0) {
       Alert.alert("Nog niets afgevinkt", "Er zijn geen producten om te verwijderen.");
@@ -894,32 +1413,51 @@ export default function App() {
         {
           text: "Verwijderen",
           style: "destructive",
-          onPress: async () => {
-            const user = auth.currentUser;
+          onPress: () => {
+            setItems((currentItems) =>
+              currentItems.filter(
+                (item) => !item.completed
+              )
+            );
 
-            if (!user) return;
-
-            try {
-              const completedItems = items.filter((item) => item.completed);
-
-              await Promise.all(
-                completedItems.map((item) =>
-                  remove(
-                    ref(
-                      db,
-                      `users/${user.uid}/shoppingList/items/${item.id}`
-                    )
-                  )
-                )
+            completedItems.forEach((item) => {
+              enqueueFirebaseWrite(
+                `lists/${activeListId}/items/${item.id}`,
+                null
               );
-            } catch (error) {
-              console.error("Lijst opruimen mislukt:", error);
+            });
+          },
+        },
+      ]
+    );
+  };
 
-              Alert.alert(
-                "Fout",
-                "De afgevinkte producten konden niet worden verwijderd."
-              );
-            }
+  const clearList = () => {
+    if (items.length === 0) {
+      Alert.alert(
+        "Lijst is leeg",
+        "Er staan geen producten in deze lijst."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Hele lijst leegmaken",
+      `Wil je alle ${items.length} producten uit "${activeList.name}" verwijderen?`,
+      [
+        {
+          text: "Annuleren",
+          style: "cancel",
+        },
+        {
+          text: "Leegmaken",
+          style: "destructive",
+          onPress: () => {
+            setItems([]);
+            enqueueFirebaseWrite(
+              `lists/${activeListId}/items`,
+              null
+            );
           },
         },
       ]
@@ -1060,7 +1598,7 @@ export default function App() {
   const renderListHeader = () => (
     <>
       <View style={styles.simpleHeader}>
-        <View>
+        <View style={styles.simpleHeaderCopy}>
           <Text style={styles.simpleEyebrow}>
             MIJN BOODSCHAPPEN
           </Text>
@@ -1089,11 +1627,11 @@ export default function App() {
         </View>
 
         <View style={styles.simpleHeaderActions}>
-          {isWifiUnavailable && (
+          {isOffline && (
             <View
               style={styles.offlineIndicator}
               accessibilityRole="image"
-              accessibilityLabel="Geen wifi"
+              accessibilityLabel="Geen internet"
             >
               <Ionicons
                 name="cloud-offline-outline"
@@ -1107,6 +1645,8 @@ export default function App() {
             style={styles.cleanButton}
             onPress={clearCompleted}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Afgevinkte producten verwijderen"
           >
             <Ionicons
               name="checkmark-done-outline"
@@ -1114,7 +1654,107 @@ export default function App() {
               color={COLORS.primary}
             />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.cleanButton,
+              styles.clearAllButton,
+            ]}
+            onPress={clearList}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Hele lijst leegmaken"
+          >
+            <Ionicons
+              name="trash-outline"
+              size={19}
+              color={COLORS.danger}
+            />
+          </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={styles.listTabsBlock}>
+        <Text style={styles.listTabsLabel}>MIJN LIJSTEN</Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.listTabsContent}
+        >
+          {lists.map((list) => {
+            const selected =
+              list.id === activeListId;
+
+            return (
+              <View
+                key={list.id}
+                style={[
+                  styles.listTab,
+                  selected && styles.listTabSelected,
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.listTabSelect}
+                  onPress={() => selectList(list.id)}
+                  activeOpacity={0.75}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                >
+                  <Text
+                    style={[
+                      styles.listTabText,
+                      selected &&
+                        styles.listTabTextSelected,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {list.name}
+                  </Text>
+                </TouchableOpacity>
+
+                {lists.length > 1 && (
+                  <TouchableOpacity
+                    style={styles.listTabDelete}
+                    onPress={() =>
+                      confirmRemoveList(list)
+                    }
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${list.name} verwijderen`}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={15}
+                      color={
+                        selected
+                          ? "#FFFFFF"
+                          : COLORS.textSoft
+                      }
+                    />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+
+          <TouchableOpacity
+            style={styles.addListTab}
+            onPress={openListModal}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Nieuwe lijst toevoegen"
+          >
+            <Ionicons
+              name="add"
+              size={20}
+              color={COLORS.primary}
+            />
+            <Text style={styles.addListTabText}>
+              Lijst
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <TouchableOpacity
@@ -1149,7 +1789,7 @@ export default function App() {
 
       <View style={styles.listHeading}>
         <Text style={styles.listTitle}>
-          Jouw lijst
+          {activeList.name}
         </Text>
       </View>
     </>
@@ -1426,6 +2066,96 @@ export default function App() {
               >
                 <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
                 <Text style={styles.saveButtonText}>Toevoegen aan lijst</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={listModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeListModal}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={styles.centerModalBackdrop}
+            onPress={closeListModal}
+          >
+            <Pressable
+              style={styles.storeModal}
+              onPress={(event) => event.stopPropagation()}
+            >
+              <View style={styles.modalHeadingRow}>
+                <View>
+                  <Text style={styles.modalEyebrow}>
+                    NIEUWE LIJST
+                  </Text>
+                  <Text style={styles.modalTitle}>
+                    Geef je lijst een naam
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeListModal}
+                >
+                  <Ionicons
+                    name="close"
+                    size={22}
+                    color={COLORS.text}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                Elke lijst heeft eigen producten en een eigen supermarkt.
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Ionicons
+                  name="list-outline"
+                  size={21}
+                  color={COLORS.textSoft}
+                />
+
+                <TextInput
+                  style={styles.input}
+                  value={newListName}
+                  onChangeText={setNewListName}
+                  placeholder="Bijvoorbeeld Weekend"
+                  placeholderTextColor="#98A19B"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={createList}
+                  maxLength={30}
+                  selectTextOnFocus
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  !newListName.trim() &&
+                    styles.saveButtonDisabled,
+                ]}
+                onPress={createList}
+                disabled={!newListName.trim()}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="add-circle-outline"
+                  size={21}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.saveButtonText}>
+                  Lijst toevoegen
+                </Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>

@@ -79,6 +79,11 @@ export const styles = StyleSheet.create({
     shadowRadius: 8,
   },
 
+  simpleHeaderCopy: {
+    flex: 1,
+    marginRight: 8,
+  },
+
   simpleEyebrow: {
     fontSize: 10,
     fontWeight: "800",
@@ -133,6 +138,92 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  clearAllButton: {
+    marginLeft: 7,
+    backgroundColor: "#FBECEC",
+  },
+
+  listTabsBlock: {
+    marginBottom: 12,
+  },
+
+  listTabsLabel: {
+    paddingHorizontal: 2,
+    marginBottom: 7,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    color: COLORS.textSoft,
+  },
+
+  listTabsContent: {
+    alignItems: "center",
+    paddingRight: 4,
+  },
+
+  listTab: {
+    minHeight: 39,
+    maxWidth: 190,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 13,
+    backgroundColor: COLORS.surface,
+    marginRight: 8,
+  },
+
+  listTabSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+
+  listTabSelect: {
+    minHeight: 37,
+    justifyContent: "center",
+    paddingLeft: 13,
+    paddingRight: 8,
+  },
+
+  listTabText: {
+    maxWidth: 125,
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+
+  listTabTextSelected: {
+    color: "#FFFFFF",
+  },
+
+  listTabDelete: {
+    width: 31,
+    minHeight: 37,
+    alignItems: "center",
+    justifyContent: "center",
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+
+  addListTab: {
+    minHeight: 39,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#AFCDB8",
+    borderRadius: 13,
+    backgroundColor: COLORS.primarySoft,
+    paddingHorizontal: 12,
+  },
+
+  addListTabText: {
+    marginLeft: 4,
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.primaryDark,
   },
 
   storeSelector: {
