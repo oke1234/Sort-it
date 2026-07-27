@@ -23,6 +23,11 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  ImageManipulator,
+  SaveFormat,
+} from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
 import * as Network from "expo-network";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles, COLORS} from "../styles";
@@ -43,6 +48,7 @@ import {
   STORE_KEY,
   stores,
   storeRoutes,
+  customStoreCategories,
   categoryIcons,
 } from "../shoppingData";
 
@@ -72,6 +78,13 @@ const createDefaultList = ({
 const getUserListsKey = (userId) =>
   `${LOCAL_LISTS_KEY}:${userId}`;
 
+const getStoreLogoSource = (store) =>
+  store?.isCustom
+    ? {
+        uri: store.logoUri,
+      }
+    : store?.logo;
+
 const normalizeItems = (savedItems) => {
   if (Array.isArray(savedItems)) {
     return savedItems.filter((item) => item?.id);
@@ -82,7 +95,61 @@ const normalizeItems = (savedItems) => {
   );
 };
 
+const normalizeCustomStores = (savedStores) =>
+  Object.entries(savedStores ?? {})
+    .map(([storeId, store], index) => {
+      if (!store || typeof store !== "object") {
+        return null;
+      }
+
+      const name = store.name?.trim();
+      const logoUri =
+        typeof store.logoUri === "string"
+          ? store.logoUri
+          : "";
+      const categories = Array.from(
+        new Set(
+          (Array.isArray(store.categories)
+            ? store.categories
+            : []
+          )
+            .filter(
+              (category) =>
+                typeof category === "string" &&
+                category.trim()
+            )
+            .map((category) => category.trim())
+        )
+      );
+
+      if (!name || !logoUri) {
+        return null;
+      }
+
+      return {
+        id: store.id ?? storeId,
+        name,
+        logoUri,
+        categories:
+          categories.length > 0
+            ? categories
+            : [...customStoreCategories],
+        isCustom: true,
+        createdAt:
+          store.createdAt ?? Date.now() + index,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.createdAt - b.createdAt);
+
 const normalizeShoppingLists = (data = {}) => {
+  const customStores = normalizeCustomStores(
+    data.customStores
+  );
+  const availableStoreNames = new Set([
+    ...stores.map((store) => store.name),
+    ...customStores.map((store) => store.name),
+  ]);
   const savedLists = Object.entries(data.lists ?? {})
     .filter(
       ([, list]) =>
@@ -92,8 +159,8 @@ const normalizeShoppingLists = (data = {}) => {
       id: list.id ?? listId,
       name: list.name?.trim() || `Lijst ${index + 1}`,
       items: normalizeItems(list.items),
-      selectedStore: stores.some(
-        (store) => store.name === list.selectedStore
+      selectedStore: availableStoreNames.has(
+        list.selectedStore
       )
         ? list.selectedStore
         : "Lidl",
@@ -120,6 +187,7 @@ const normalizeShoppingLists = (data = {}) => {
   return {
     lists,
     activeListId,
+    customStores,
   };
 };
 
@@ -404,13 +472,28 @@ export default function App() {
   const [lists, setLists] = useState(() => [
     createDefaultList(),
   ]);
+  const [customStores, setCustomStores] = useState([]);
   const [activeListId, setActiveListId] =
     useState(DEFAULT_LIST_ID);
   const [newItem, setNewItem] = useState("");
   const [newListName, setNewListName] = useState("");
+  const [customStoreName, setCustomStoreName] =
+    useState("");
+  const [customStoreLogoUri, setCustomStoreLogoUri] =
+    useState("");
+  const [
+    orderedCustomStoreCategories,
+    setOrderedCustomStoreCategories,
+  ] = useState(() => [...customStoreCategories]);
+  const [isPickingStoreLogo, setIsPickingStoreLogo] =
+    useState(false);
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [listModalVisible, setListModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
+  const [
+    customStoreModalVisible,
+    setCustomStoreModalVisible,
+  ] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const networkState = Network.useNetworkState();
   const [draggedItem, setDraggedItem] = useState(null);
@@ -514,15 +597,29 @@ export default function App() {
 
   const isOffline = networkStatusKnown && !isOnline;
 
+  const allStores = useMemo(
+    () => [...stores, ...customStores],
+    [customStores]
+  );
+
   const currentStore =
-    stores.find((store) => store.name === selectedStore) ??
-    stores[0];
+    allStores.find(
+      (store) => store.name === selectedStore
+    ) ?? stores[0];
 
   const routeCategories = useMemo(
-    () =>
-      storeRoutes[selectedStore] ??
-      storeRoutes.Lidl,
-    [selectedStore]
+    () => {
+      const customStore = customStores.find(
+        (store) => store.name === selectedStore
+      );
+
+      return (
+        customStore?.categories ??
+        storeRoutes[selectedStore] ??
+        storeRoutes.Lidl
+      );
+    },
+    [customStores, selectedStore]
   );
 
   const measureInDragCoordinates = useCallback(
@@ -925,6 +1022,7 @@ export default function App() {
       if (!currentUser) {
         currentUserIdRef.current = null;
         setLists([createDefaultList()]);
+        setCustomStores([]);
         setActiveListId(DEFAULT_LIST_ID);
         setLoaded(true);
         return;
@@ -932,6 +1030,7 @@ export default function App() {
 
       currentUserIdRef.current = currentUser.uid;
       setLists([createDefaultList()]);
+      setCustomStores([]);
       setActiveListId(DEFAULT_LIST_ID);
       setLoaded(false);
 
@@ -972,6 +1071,7 @@ export default function App() {
             );
 
             setLists(localState.lists);
+            setCustomStores(localState.customStores);
             setActiveListId(localState.activeListId);
           } else if (legacyItems) {
             const localState = normalizeShoppingLists({
@@ -980,6 +1080,7 @@ export default function App() {
             });
 
             setLists(localState.lists);
+            setCustomStores(localState.customStores);
             setActiveListId(localState.activeListId);
           }
         } catch (error) {
@@ -1013,6 +1114,7 @@ export default function App() {
               normalizeShoppingLists(mergedData);
 
             setLists(nextState.lists);
+            setCustomStores(nextState.customStores);
             setActiveListId(nextState.activeListId);
             setLoaded(true);
 
@@ -1103,6 +1205,7 @@ export default function App() {
             JSON.stringify({
               lists,
               activeListId,
+              customStores,
             })
           ),
           AsyncStorage.setItem(
@@ -1131,6 +1234,7 @@ export default function App() {
     });
   }, [
     activeListId,
+    customStores,
     items,
     lists,
     loaded,
@@ -1176,7 +1280,10 @@ export default function App() {
       const category = await getCategory(
         cleanedName,
         selectedStore,
-        { useApi: hasWifi }
+        {
+          useApi: hasWifi,
+          categories: routeCategories,
+        }
       );
 
       const item = {
@@ -1250,6 +1357,259 @@ export default function App() {
     enqueueFirebaseWrite(
       `lists/${activeListId}/items/${id}`,
       null
+    );
+  };
+
+  const openCustomStoreModal = () => {
+    if (!auth.currentUser) {
+      Alert.alert(
+        "Niet ingelogd",
+        "Log eerst in om een Custom-winkel te maken."
+      );
+      return;
+    }
+
+    setCustomStoreName("");
+    setCustomStoreLogoUri("");
+    setOrderedCustomStoreCategories([
+      ...customStoreCategories,
+    ]);
+    setStoreModalVisible(false);
+    setCustomStoreModalVisible(true);
+  };
+
+  const closeCustomStoreModal = () => {
+    setCustomStoreModalVisible(false);
+    setCustomStoreName("");
+    setCustomStoreLogoUri("");
+    setOrderedCustomStoreCategories([
+      ...customStoreCategories,
+    ]);
+  };
+
+  const pickCustomStoreLogo = async () => {
+    if (isPickingStoreLogo) return;
+
+    setIsPickingStoreLogo(true);
+
+    try {
+      const pickerResult =
+        await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 1,
+        });
+
+      if (pickerResult.canceled) return;
+
+      const selectedImage = pickerResult.assets?.[0];
+
+      if (!selectedImage?.uri) {
+        throw new Error("Geen afbeelding ontvangen.");
+      }
+
+      const manipulationContext =
+        ImageManipulator.manipulate(selectedImage.uri);
+
+      manipulationContext.resize({
+        width: 320,
+        height: 320,
+      });
+
+      const renderedImage =
+        await manipulationContext.renderAsync();
+      const optimizedImage =
+        await renderedImage.saveAsync({
+          base64: true,
+          compress: 0.65,
+          format: SaveFormat.JPEG,
+        });
+
+      if (!optimizedImage.base64) {
+        throw new Error(
+          "De afbeelding kon niet worden verwerkt."
+        );
+      }
+
+      setCustomStoreLogoUri(
+        `data:image/jpeg;base64,${optimizedImage.base64}`
+      );
+    } catch (error) {
+      console.error(
+        "Winkellogo kiezen mislukt:",
+        error
+      );
+
+      Alert.alert(
+        "Afbeelding niet gekozen",
+        "Probeer een andere afbeelding te kiezen."
+      );
+    } finally {
+      setIsPickingStoreLogo(false);
+    }
+  };
+
+  const moveCustomStoreCategory = (
+    categoryIndex,
+    direction
+  ) => {
+    setOrderedCustomStoreCategories(
+      (currentCategories) => {
+        const nextIndex = categoryIndex + direction;
+
+        if (
+          nextIndex < 0 ||
+          nextIndex >= currentCategories.length
+        ) {
+          return currentCategories;
+        }
+
+        const nextCategories = [...currentCategories];
+        [
+          nextCategories[categoryIndex],
+          nextCategories[nextIndex],
+        ] = [
+          nextCategories[nextIndex],
+          nextCategories[categoryIndex],
+        ];
+
+        return nextCategories;
+      }
+    );
+  };
+
+  const createCustomStore = () => {
+    const user = auth.currentUser;
+    const cleanedName = customStoreName.trim();
+
+    if (!user) {
+      Alert.alert(
+        "Niet ingelogd",
+        "Log eerst in om een Custom-winkel te maken."
+      );
+      return;
+    }
+
+    if (!cleanedName) {
+      Alert.alert(
+        "Naam ontbreekt",
+        "Geef je Custom-winkel een naam."
+      );
+      return;
+    }
+
+    if (!customStoreLogoUri) {
+      Alert.alert(
+        "Afbeelding ontbreekt",
+        "Kies een afbeelding voor je Custom-winkel."
+      );
+      return;
+    }
+
+    const storeNameExists = allStores.some(
+      (store) =>
+        store.name.toLowerCase() ===
+        cleanedName.toLowerCase()
+    );
+
+    if (storeNameExists) {
+      Alert.alert(
+        "Naam bestaat al",
+        "Kies een andere naam voor je Custom-winkel."
+      );
+      return;
+    }
+
+    const customStore = {
+      id: createId("custom-store-"),
+      name: cleanedName,
+      logoUri: customStoreLogoUri,
+      categories: [...orderedCustomStoreCategories],
+      isCustom: true,
+      createdAt: Date.now(),
+    };
+
+    setCustomStores((currentStores) => [
+      ...currentStores,
+      customStore,
+    ]);
+    setSelectedStore(customStore.name);
+
+    enqueueFirebaseWrite(
+      `customStores/${customStore.id}`,
+      customStore
+    );
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/selectedStore`,
+      customStore.name
+    );
+
+    closeCustomStoreModal();
+  };
+
+  const confirmRemoveCustomStore = (customStore) => {
+    const affectedLists = lists.filter(
+      (list) => list.selectedStore === customStore.name
+    );
+    const affectedListCopy =
+      affectedLists.length === 0
+        ? ""
+        : affectedLists.length === 1
+        ? "1 lijst gebruikt deze winkel en wordt teruggezet naar Lidl."
+        : `${affectedLists.length} lijsten gebruiken deze winkel en worden teruggezet naar Lidl.`;
+    const removeMessage = [
+      `Wil je "${customStore.name}" verwijderen?`,
+      affectedListCopy,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    Alert.alert(
+      "Custom-winkel verwijderen",
+      removeMessage,
+      [
+        {
+          text: "Annuleren",
+          style: "cancel",
+        },
+        {
+          text: "Verwijderen",
+          style: "destructive",
+          onPress: () => {
+            setCustomStores((currentStores) =>
+              currentStores.filter(
+                (store) => store.id !== customStore.id
+              )
+            );
+
+            if (affectedLists.length > 0) {
+              setLists((currentLists) =>
+                currentLists.map((list) =>
+                  list.selectedStore === customStore.name
+                    ? {
+                        ...list,
+                        selectedStore: "Lidl",
+                      }
+                    : list
+                )
+              );
+            }
+
+            enqueueFirebaseWrite(
+              `customStores/${customStore.id}`,
+              null
+            );
+
+            affectedLists.forEach((list) => {
+              enqueueFirebaseWrite(
+                `lists/${list.id}/selectedStore`,
+                "Lidl"
+              );
+            });
+          },
+        },
+      ]
     );
   };
 
@@ -1764,7 +2124,7 @@ export default function App() {
       >
         <View style={styles.storeSelectorIcon}>
           <Image
-            source={currentStore.logo}
+            source={getStoreLogoSource(currentStore)}
             style={styles.storeLogo}
             resizeMode="contain"
           />
@@ -2191,48 +2551,375 @@ export default function App() {
               De volgorde van de categorieën past zich aan de Supermarkt aan.
             </Text>
 
-            <View style={styles.storeOptions}>
-              {stores.map((store) => {
+            <ScrollView
+              style={styles.storeOptionsScroll}
+              contentContainerStyle={styles.storeOptions}
+              showsVerticalScrollIndicator={false}
+            >
+              {allStores.map((store) => {
                 const selected = selectedStore === store.name;
 
                 return (
-                  <TouchableOpacity
+                  <View
                     key={store.id}
                     style={[
                       styles.storeOption,
                       selected && styles.storeOptionSelected,
                     ]}
-                    onPress={() => selectStore(store.name)}
-                    activeOpacity={0.75}
                   >
-                    <Image
-                      source={store.logo}
-                      style={styles.storeOptionLogo}
-                      resizeMode="contain"
-                    />
-
-                    <Text
-                      style={[
-                        styles.storeOptionText,
-                        selected && styles.storeOptionTextSelected,
-                      ]}
+                    <TouchableOpacity
+                      style={styles.storeOptionMain}
+                      onPress={() => selectStore(store.name)}
+                      activeOpacity={0.75}
                     >
-                      {store.name}
-                    </Text>
-
-                    {selected && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={22}
-                        color={COLORS.primary}
+                      <Image
+                        source={getStoreLogoSource(store)}
+                        style={styles.storeOptionLogo}
+                        resizeMode="contain"
                       />
+
+                      <Text
+                        style={[
+                          styles.storeOptionText,
+                          selected &&
+                            styles.storeOptionTextSelected,
+                        ]}
+                      >
+                        {store.name}
+                      </Text>
+
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={22}
+                          color={COLORS.primary}
+                        />
+                      )}
+                    </TouchableOpacity>
+
+                    {store.isCustom && (
+                      <TouchableOpacity
+                        style={styles.customStoreDeleteButton}
+                        onPress={() =>
+                          confirmRemoveCustomStore(store)
+                        }
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${store.name} verwijderen`}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={19}
+                          color={COLORS.danger}
+                        />
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
-            </View>
+
+              <TouchableOpacity
+                style={styles.addCustomStoreOption}
+                onPress={openCustomStoreModal}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Custom-winkel toevoegen"
+              >
+                <View style={styles.addCustomStoreIcon}>
+                  <Ionicons
+                    name="add"
+                    size={22}
+                    color={COLORS.primary}
+                  />
+                </View>
+                <View style={styles.addCustomStoreCopy}>
+                  <Text style={styles.addCustomStoreTitle}>
+                    Custom winkel
+                  </Text>
+                  <Text style={styles.addCustomStoreText}>
+                    Eigen naam, afbeelding en volgorde
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={COLORS.textSoft}
+                />
+              </TouchableOpacity>
+            </ScrollView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal
+        visible={customStoreModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeCustomStoreModal}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={styles.centerModalBackdrop}
+            onPress={closeCustomStoreModal}
+          >
+            <Pressable
+              style={[
+                styles.storeModal,
+                styles.customStoreEditor,
+              ]}
+              onPress={(event) => event.stopPropagation()}
+            >
+              <View style={styles.modalHeadingRow}>
+                <View style={styles.customStoreHeadingCopy}>
+                  <Text style={styles.modalEyebrow}>
+                    CUSTOM WINKEL
+                  </Text>
+                  <Text style={styles.modalTitle}>
+                    Maak je eigen winkel
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeCustomStoreModal}
+                >
+                  <Ionicons
+                    name="close"
+                    size={22}
+                    color={COLORS.text}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.customStoreDescription}>
+                Kies een afbeelding en zet de categorieën in
+                de volgorde waarin je door de winkel loopt.
+              </Text>
+
+              <ScrollView
+                style={styles.customStoreEditorScroll}
+                contentContainerStyle={
+                  styles.customStoreEditorContent
+                }
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.customStoreFieldLabel}>
+                  Afbeelding
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.customStoreLogoPicker}
+                  onPress={pickCustomStoreLogo}
+                  disabled={isPickingStoreLogo}
+                  activeOpacity={0.75}
+                >
+                  {customStoreLogoUri ? (
+                    <>
+                      <Image
+                        source={{
+                          uri: customStoreLogoUri,
+                        }}
+                        style={styles.customStoreLogoPreview}
+                        resizeMode="cover"
+                      />
+                      <View
+                        style={styles.customStoreLogoEditBadge}
+                      >
+                        <Ionicons
+                          name="pencil"
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <View
+                        style={
+                          styles.customStoreLogoPlaceholder
+                        }
+                      >
+                        <Ionicons
+                          name={
+                            isPickingStoreLogo
+                              ? "hourglass-outline"
+                              : "image-outline"
+                          }
+                          size={30}
+                          color={COLORS.primary}
+                        />
+                      </View>
+                      <Text
+                        style={styles.customStoreLogoPickerText}
+                      >
+                        {isPickingStoreLogo
+                          ? "Afbeelding verwerken..."
+                          : "Kies een afbeelding"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <Text style={styles.customStoreFieldLabel}>
+                  Naam
+                </Text>
+
+                <View style={styles.inputContainer}>
+                  <Ionicons
+                    name="storefront-outline"
+                    size={21}
+                    color={COLORS.textSoft}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={customStoreName}
+                    onChangeText={setCustomStoreName}
+                    placeholder="Bijvoorbeeld Buurtsuper"
+                    placeholderTextColor="#98A19B"
+                    returnKeyType="done"
+                    maxLength={30}
+                  />
+                </View>
+
+                <View style={styles.customStoreCategoryHeading}>
+                  <View>
+                    <Text style={styles.customStoreFieldLabel}>
+                      Categorievolgorde
+                    </Text>
+                    <Text
+                      style={styles.customStoreCategoryHelp}
+                    >
+                      Gebruik de pijlen om categorieën te
+                      verplaatsen.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.customStoreCategoryList}>
+                  {orderedCustomStoreCategories.map(
+                    (category, index) => (
+                      <View
+                        key={category}
+                        style={styles.customStoreCategoryRow}
+                      >
+                        <Text
+                          style={styles.customStoreCategoryNumber}
+                        >
+                          {index + 1}
+                        </Text>
+                        <View
+                          style={styles.customStoreCategoryIcon}
+                        >
+                          <Ionicons
+                            name={
+                              categoryIcons[category] ??
+                              "basket-outline"
+                            }
+                            size={17}
+                            color={COLORS.primary}
+                          />
+                        </View>
+                        <Text
+                          style={styles.customStoreCategoryText}
+                        >
+                          {category}
+                        </Text>
+                        <View
+                          style={styles.customStoreCategoryActions}
+                        >
+                          <TouchableOpacity
+                            style={[
+                              styles.customStoreCategoryMove,
+                              index === 0 &&
+                                styles.customStoreCategoryMoveDisabled,
+                            ]}
+                            onPress={() =>
+                              moveCustomStoreCategory(index, -1)
+                            }
+                            disabled={index === 0}
+                            accessibilityLabel={`${category} omhoog`}
+                          >
+                            <Ionicons
+                              name="chevron-up"
+                              size={17}
+                              color={
+                                index === 0
+                                  ? "#BAC2BC"
+                                  : COLORS.text
+                              }
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.customStoreCategoryMove,
+                              index ===
+                                orderedCustomStoreCategories.length -
+                                  1 &&
+                                styles.customStoreCategoryMoveDisabled,
+                            ]}
+                            onPress={() =>
+                              moveCustomStoreCategory(index, 1)
+                            }
+                            disabled={
+                              index ===
+                              orderedCustomStoreCategories.length -
+                                1
+                            }
+                            accessibilityLabel={`${category} omlaag`}
+                          >
+                            <Ionicons
+                              name="chevron-down"
+                              size={17}
+                              color={
+                                index ===
+                                orderedCustomStoreCategories.length -
+                                  1
+                                  ? "#BAC2BC"
+                                  : COLORS.text
+                              }
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )
+                  )}
+                </View>
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  styles.customStoreSaveButton,
+                  (!customStoreName.trim() ||
+                    !customStoreLogoUri ||
+                    isPickingStoreLogo) &&
+                    styles.saveButtonDisabled,
+                ]}
+                onPress={createCustomStore}
+                disabled={
+                  !customStoreName.trim() ||
+                  !customStoreLogoUri ||
+                  isPickingStoreLogo
+                }
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={21}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.saveButtonText}>
+                  Winkel opslaan en kiezen
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

@@ -36,11 +36,13 @@ function getLocalCategory(itemName, categories) {
 export async function getCategory(
   itemName,
   selectedStore,
-  { useApi = true } = {}
+  { useApi = true, categories: providedCategories } = {}
 ) {
   const categories =
-    storeRoutes[selectedStore] ??
-    storeRoutes.Lidl;
+    Array.isArray(providedCategories) &&
+    providedCategories.length > 0
+      ? providedCategories
+      : storeRoutes[selectedStore] ?? storeRoutes.Lidl;
 
   const localCategory = getLocalCategory(
     itemName,

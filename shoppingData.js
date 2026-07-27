@@ -132,6 +132,22 @@ export const storeRoutes = {
   ],
 };
 
+export const customStoreCategories = [
+  "Groente en fruit",
+  "Brood",
+  "Vlees en vis",
+  "Ontbijt",
+  "Pasta en rijst",
+  "Conserven",
+  "Sauzen en kruiden",
+  "Koeling en zuivel",
+  "Snacks en snoep",
+  "Drinken",
+  "Diepvries",
+  "Huishouden",
+  "Overig",
+];
+
 export const categoryIcons = {
   "Groente en fruit": "leaf-outline",
   Brood: "restaurant-outline",

@@ -605,6 +605,7 @@ export const styles = StyleSheet.create({
   storeModal: {
     width: "100%",
     maxWidth: 420,
+    maxHeight: "92%",
     backgroundColor: COLORS.surface,
     borderRadius: 28,
     padding: 22,
@@ -636,6 +637,12 @@ export const styles = StyleSheet.create({
 
   storeOptions: {
     gap: 9,
+    paddingBottom: 2,
+  },
+
+  storeOptionsScroll: {
+    maxHeight: 465,
+    flexShrink: 1,
   },
 
   storeOption: {
@@ -645,12 +652,21 @@ export const styles = StyleSheet.create({
     borderRadius: 17,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 14,
+    overflow: "hidden",
   },
 
   storeOptionSelected: {
     borderColor: "#B7D8C1",
     backgroundColor: COLORS.primarySoft,
+  },
+
+  storeOptionMain: {
+    flex: 1,
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 14,
+    paddingRight: 13,
   },
 
   storeOptionRadio: {
@@ -685,6 +701,217 @@ export const styles = StyleSheet.create({
   storeOptionTextSelected: {
     color: COLORS.primaryDark,
     fontWeight: "900",
+  },
+
+  customStoreDeleteButton: {
+    width: 48,
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+    backgroundColor: "rgba(255, 255, 255, 0.58)",
+  },
+
+  addCustomStoreOption: {
+    minHeight: 65,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#AFCDB8",
+    borderRadius: 17,
+    backgroundColor: COLORS.primarySoft,
+    paddingHorizontal: 13,
+  },
+
+  addCustomStoreIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    marginRight: 11,
+  },
+
+  addCustomStoreCopy: {
+    flex: 1,
+  },
+
+  addCustomStoreTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    color: COLORS.primaryDark,
+  },
+
+  addCustomStoreText: {
+    marginTop: 2,
+    fontSize: 11,
+    color: COLORS.textSoft,
+  },
+
+  customStoreEditor: {
+    maxHeight: "92%",
+    paddingBottom: 18,
+  },
+
+  customStoreHeadingCopy: {
+    flex: 1,
+    marginRight: 12,
+  },
+
+  customStoreDescription: {
+    marginTop: 8,
+    marginBottom: 14,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.textSoft,
+  },
+
+  customStoreEditorScroll: {
+    flexShrink: 1,
+  },
+
+  customStoreEditorContent: {
+    paddingBottom: 3,
+  },
+
+  customStoreFieldLabel: {
+    marginBottom: 7,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.7,
+    color: COLORS.textSoft,
+    textTransform: "uppercase",
+  },
+
+  customStoreLogoPicker: {
+    minHeight: 84,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#B9D4C1",
+    borderRadius: 18,
+    backgroundColor: COLORS.surfaceSoft,
+    padding: 11,
+    marginBottom: 17,
+  },
+
+  customStoreLogoPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  customStoreLogoPreview: {
+    width: 60,
+    height: 60,
+    borderRadius: 17,
+    backgroundColor: "#FFFFFF",
+  },
+
+  customStoreLogoEditBadge: {
+    position: "absolute",
+    left: 52,
+    bottom: 7,
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    borderWidth: 2,
+    borderColor: COLORS.surface,
+  },
+
+  customStoreLogoPickerText: {
+    flex: 1,
+    marginLeft: 13,
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.primaryDark,
+  },
+
+  customStoreCategoryHeading: {
+    marginTop: 20,
+  },
+
+  customStoreCategoryHelp: {
+    marginTop: -3,
+    marginBottom: 10,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textSoft,
+  },
+
+  customStoreCategoryList: {
+    gap: 7,
+  },
+
+  customStoreCategoryRow: {
+    minHeight: 49,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceSoft,
+    paddingLeft: 10,
+    paddingRight: 6,
+  },
+
+  customStoreCategoryNumber: {
+    width: 23,
+    fontSize: 12,
+    fontWeight: "900",
+    color: COLORS.textSoft,
+    textAlign: "center",
+  },
+
+  customStoreCategoryIcon: {
+    width: 29,
+    height: 29,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+    marginHorizontal: 7,
+  },
+
+  customStoreCategoryText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+
+  customStoreCategoryActions: {
+    flexDirection: "row",
+    gap: 4,
+  },
+
+  customStoreCategoryMove: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  customStoreCategoryMoveDisabled: {
+    backgroundColor: "#F1F3F1",
+  },
+
+  customStoreSaveButton: {
+    marginTop: 13,
   },
 
   originalItemWhileDragging: {
