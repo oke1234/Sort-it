@@ -53,7 +53,7 @@ export const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 18,
     paddingTop: 14,
-    paddingBottom: 120,
+    paddingBottom: 170,
   },
 
   emptyListContent: {
@@ -163,6 +163,15 @@ export const styles = StyleSheet.create({
     paddingRight: 4,
   },
 
+  listTabsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  listTabsScroller: {
+    flex: 1,
+  },
+
   listTab: {
     minHeight: 39,
     maxWidth: 190,
@@ -230,10 +239,13 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    marginBottom: 15,
+    height: 39,
+    maxWidth: 125,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 13,
+    paddingHorizontal: 7,
+    marginRight: 8,
     elevation: 1,
     shadowColor: COLORS.shadow,
     shadowOffset: {
@@ -245,31 +257,22 @@ export const styles = StyleSheet.create({
   },
 
   storeSelectorIcon: {
-    width: 39,
-    height: 39,
-    borderRadius: 12,
+    width: 29,
+    height: 29,
+    borderRadius: 9,
     backgroundColor: COLORS.primarySoft,
     alignItems: "center",
     justifyContent: "center",
-  },
-
-  storeSelectorContent: {
-    flex: 1,
-    marginLeft: 11,
-  },
-
-  storeSelectorLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.6,
-    color: COLORS.textSoft,
-    marginBottom: 2,
+    marginRight: 6,
   },
 
   storeSelectorText: {
-    fontSize: 16,
+    flexShrink: 1,
+    maxWidth: 65,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.text,
+    marginRight: 3,
   },
 
   listHeading: {
@@ -337,8 +340,8 @@ export const styles = StyleSheet.create({
   },
 
   storeLogo: {
-    width: 30,
-    height: 30,
+    width: 23,
+    height: 23,
   },
 
   storeOptionLogo: {

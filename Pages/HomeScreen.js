@@ -1964,7 +1964,7 @@ export default function App() {
           </Text>
 
           <Text style={styles.simpleTitle}>
-            Boodschappenlijst
+            Boodschappen
           </Text>
 
           <View style={styles.summaryRow}>
@@ -2037,115 +2037,117 @@ export default function App() {
       <View style={styles.listTabsBlock}>
         <Text style={styles.listTabsLabel}>MIJN LIJSTEN</Text>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.listTabsContent}
-        >
-          {lists.map((list) => {
-            const selected =
-              list.id === activeListId;
-
-            return (
-              <View
-                key={list.id}
-                style={[
-                  styles.listTab,
-                  selected && styles.listTabSelected,
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.listTabSelect}
-                  onPress={() => selectList(list.id)}
-                  activeOpacity={0.75}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected }}
-                >
-                  <Text
-                    style={[
-                      styles.listTabText,
-                      selected &&
-                        styles.listTabTextSelected,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {list.name}
-                  </Text>
-                </TouchableOpacity>
-
-                {lists.length > 1 && (
-                  <TouchableOpacity
-                    style={styles.listTabDelete}
-                    onPress={() =>
-                      confirmRemoveList(list)
-                    }
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${list.name} verwijderen`}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={15}
-                      color={
-                        selected
-                          ? "#FFFFFF"
-                          : COLORS.textSoft
-                      }
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
-
+        <View style={styles.listTabsRow}>
           <TouchableOpacity
-            style={styles.addListTab}
-            onPress={openListModal}
+            style={styles.storeSelector}
+            onPress={() => setStoreModalVisible(true)}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel="Nieuwe lijst toevoegen"
+            accessibilityLabel={`Supermarkt kiezen. Huidige supermarkt: ${selectedStore}`}
           >
-            <Ionicons
-              name="add"
-              size={20}
-              color={COLORS.primary}
-            />
-            <Text style={styles.addListTabText}>
-              Lijst
+            <View style={styles.storeSelectorIcon}>
+              <Image
+                source={getStoreLogoSource(currentStore)}
+                style={styles.storeLogo}
+                resizeMode="contain"
+              />
+            </View>
+
+            <Text
+              style={styles.storeSelectorText}
+              numberOfLines={1}
+            >
+              {selectedStore}
             </Text>
+
+            <Ionicons
+              name="chevron-down"
+              size={14}
+              color={COLORS.textSoft}
+            />
           </TouchableOpacity>
-        </ScrollView>
+
+          <ScrollView
+            horizontal
+            style={styles.listTabsScroller}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.listTabsContent}
+          >
+            {lists.map((list) => {
+              const selected =
+                list.id === activeListId;
+
+              return (
+                <View
+                  key={list.id}
+                  style={[
+                    styles.listTab,
+                    selected && styles.listTabSelected,
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={styles.listTabSelect}
+                    onPress={() => selectList(list.id)}
+                    activeOpacity={0.75}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
+                  >
+                    <Text
+                      style={[
+                        styles.listTabText,
+                        selected &&
+                          styles.listTabTextSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {list.name}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {lists.length > 1 && (
+                    <TouchableOpacity
+                      style={styles.listTabDelete}
+                      onPress={() =>
+                        confirmRemoveList(list)
+                      }
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${list.name} verwijderen`}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={15}
+                        color={
+                          selected
+                            ? "#FFFFFF"
+                            : COLORS.textSoft
+                        }
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+
+            <TouchableOpacity
+              style={styles.addListTab}
+              onPress={openListModal}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Nieuwe lijst toevoegen"
+            >
+              <Ionicons
+                name="add"
+                size={20}
+                color={COLORS.primary}
+              />
+              <Text style={styles.addListTabText}>
+                Lijst
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </View>
-
-      <TouchableOpacity
-        style={styles.storeSelector}
-        onPress={() => setStoreModalVisible(true)}
-        activeOpacity={0.75}
-      >
-        <View style={styles.storeSelectorIcon}>
-          <Image
-            source={getStoreLogoSource(currentStore)}
-            style={styles.storeLogo}
-            resizeMode="contain"
-          />
-        </View>
-
-        <View style={styles.storeSelectorContent}>
-          <Text style={styles.storeSelectorLabel}>
-            Supermarkt
-          </Text>
-
-          <Text style={styles.storeSelectorText}>
-            {selectedStore}
-          </Text>
-        </View>
-
-        <Ionicons
-          name="chevron-down"
-          size={19}
-          color={COLORS.textSoft}
-        />
-      </TouchableOpacity>
 
       <View style={styles.listHeading}>
         <Text style={styles.listTitle}>
