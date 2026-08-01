@@ -58,6 +58,14 @@ const DRAG_HOLD_MS = 500;
 const DEFAULT_LIST_ID = "default";
 const LOCAL_LISTS_KEY = "SHOPPING_LISTS_V2";
 const PENDING_SYNC_KEY = "SHOPPING_LISTS_PENDING_SYNC_V2";
+const PERSON_COLORS = [
+  { background: "#E8F1FF", text: "#315F94", dot: "#6F9FD4" },
+  { background: "#FBEBDD", text: "#8A5528", dot: "#D79962" },
+  { background: "#F1EAFB", text: "#65458F", dot: "#9A78C4" },
+  { background: "#E4F3EC", text: "#356C55", dot: "#69A88A" },
+  { background: "#F9E7EC", text: "#8B475B", dot: "#CE7E94" },
+  { background: "#E8F3F5", text: "#386A73", dot: "#70A7AF" },
+];
 
 const createId = (prefix = "") =>
   `${prefix}${Date.now()}${Math.random()
@@ -67,11 +75,13 @@ const createId = (prefix = "") =>
 const createDefaultList = ({
   items = [],
   selectedStore = "Lidl",
+  categoryAssignments = {},
 } = {}) => ({
   id: DEFAULT_LIST_ID,
   name: "Lijst 1",
   items,
   selectedStore,
+  categoryAssignments,
   createdAt: Date.now(),
 });
 
@@ -94,6 +104,45 @@ const normalizeItems = (savedItems) => {
     (item) => item?.id
   );
 };
+
+const normalizePeople = (savedPeople) =>
+  Object.entries(savedPeople ?? {})
+    .map(([personId, person], index) => {
+      if (!person || typeof person !== "object") {
+        return null;
+      }
+
+      const name = person.name?.trim();
+
+      if (!name) return null;
+
+      return {
+        id: person.id ?? personId,
+        name,
+        colorIndex: Number.isInteger(person.colorIndex)
+          ? Math.abs(person.colorIndex) % PERSON_COLORS.length
+          : index % PERSON_COLORS.length,
+        createdAt: person.createdAt ?? Date.now() + index,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.createdAt - b.createdAt);
+
+const normalizeCategoryAssignments = (assignments) =>
+  Object.fromEntries(
+    Object.entries(assignments ?? {}).filter(
+      ([category, personId]) =>
+        typeof category === "string" &&
+        category.trim() &&
+        typeof personId === "string" &&
+        personId
+    )
+  );
+
+const getPersonColors = (person) =>
+  PERSON_COLORS[
+    Math.abs(person?.colorIndex ?? 0) % PERSON_COLORS.length
+  ];
 
 const normalizeCustomStores = (savedStores) =>
   Object.entries(savedStores ?? {})
@@ -146,6 +195,7 @@ const normalizeShoppingLists = (data = {}) => {
   const customStores = normalizeCustomStores(
     data.customStores
   );
+  const people = normalizePeople(data.people);
   const availableStoreNames = new Set([
     ...stores.map((store) => store.name),
     ...customStores.map((store) => store.name),
@@ -164,6 +214,9 @@ const normalizeShoppingLists = (data = {}) => {
       )
         ? list.selectedStore
         : "Lidl",
+      categoryAssignments: normalizeCategoryAssignments(
+        list.categoryAssignments
+      ),
       createdAt: list.createdAt ?? Date.now() + index,
     }))
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -188,6 +241,7 @@ const normalizeShoppingLists = (data = {}) => {
     lists,
     activeListId,
     customStores,
+    people,
   };
 };
 
@@ -195,6 +249,7 @@ const serializeList = (list) => ({
   id: list.id,
   name: list.name,
   selectedStore: list.selectedStore,
+  categoryAssignments: list.categoryAssignments ?? {},
   createdAt: list.createdAt,
   items: Object.fromEntries(
     list.items.map((item) => [item.id, item])
@@ -473,6 +528,7 @@ export default function App() {
     createDefaultList(),
   ]);
   const [customStores, setCustomStores] = useState([]);
+  const [people, setPeople] = useState([]);
   const [activeListId, setActiveListId] =
     useState(DEFAULT_LIST_ID);
   const [newItem, setNewItem] = useState("");
@@ -490,6 +546,9 @@ export default function App() {
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [listModalVisible, setListModalVisible] = useState(false);
   const [storeModalVisible, setStoreModalVisible] = useState(false);
+  const [assignmentCategory, setAssignmentCategory] =
+    useState(null);
+  const [newPersonName, setNewPersonName] = useState("");
   const [
     customStoreModalVisible,
     setCustomStoreModalVisible,
@@ -540,6 +599,8 @@ export default function App() {
   const items = activeList?.items ?? [];
   const selectedStore =
     activeList?.selectedStore ?? "Lidl";
+  const categoryAssignments =
+    activeList?.categoryAssignments ?? {};
 
   const setItems = useCallback(
     (itemsOrUpdater) => {
@@ -573,6 +634,32 @@ export default function App() {
               }
             : list
         )
+      );
+    },
+    [activeListId]
+  );
+
+  const setCategoryAssignment = useCallback(
+    (category, personId) => {
+      setLists((currentLists) =>
+        currentLists.map((list) => {
+          if (list.id !== activeListId) return list;
+
+          const nextAssignments = {
+            ...(list.categoryAssignments ?? {}),
+          };
+
+          if (personId) {
+            nextAssignments[category] = personId;
+          } else {
+            delete nextAssignments[category];
+          }
+
+          return {
+            ...list,
+            categoryAssignments: nextAssignments,
+          };
+        })
       );
     },
     [activeListId]
@@ -1023,6 +1110,7 @@ export default function App() {
         currentUserIdRef.current = null;
         setLists([createDefaultList()]);
         setCustomStores([]);
+        setPeople([]);
         setActiveListId(DEFAULT_LIST_ID);
         setLoaded(true);
         return;
@@ -1031,6 +1119,7 @@ export default function App() {
       currentUserIdRef.current = currentUser.uid;
       setLists([createDefaultList()]);
       setCustomStores([]);
+      setPeople([]);
       setActiveListId(DEFAULT_LIST_ID);
       setLoaded(false);
 
@@ -1072,6 +1161,7 @@ export default function App() {
 
             setLists(localState.lists);
             setCustomStores(localState.customStores);
+            setPeople(localState.people);
             setActiveListId(localState.activeListId);
           } else if (legacyItems) {
             const localState = normalizeShoppingLists({
@@ -1081,6 +1171,7 @@ export default function App() {
 
             setLists(localState.lists);
             setCustomStores(localState.customStores);
+            setPeople(localState.people);
             setActiveListId(localState.activeListId);
           }
         } catch (error) {
@@ -1115,6 +1206,7 @@ export default function App() {
 
             setLists(nextState.lists);
             setCustomStores(nextState.customStores);
+            setPeople(nextState.people);
             setActiveListId(nextState.activeListId);
             setLoaded(true);
 
@@ -1206,6 +1298,7 @@ export default function App() {
               lists,
               activeListId,
               customStores,
+              people,
             })
           ),
           AsyncStorage.setItem(
@@ -1238,6 +1331,7 @@ export default function App() {
     items,
     lists,
     loaded,
+    people,
     selectedStore,
   ]);
 
@@ -1634,6 +1728,59 @@ export default function App() {
     );
   };
 
+  const openAssignmentPicker = (category) => {
+    setNewPersonName("");
+    setAssignmentCategory(category);
+  };
+
+  const closeAssignmentPicker = () => {
+    Keyboard.dismiss();
+    setNewPersonName("");
+    setAssignmentCategory(null);
+  };
+
+  const assignPersonToCategory = (personId) => {
+    if (!assignmentCategory) return;
+
+    setCategoryAssignment(assignmentCategory, personId);
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/categoryAssignments/${assignmentCategory}`,
+      personId || null
+    );
+    closeAssignmentPicker();
+  };
+
+  const addPersonAndAssign = () => {
+    const cleanedName = newPersonName.trim();
+
+    if (!cleanedName || !assignmentCategory) return;
+
+    const existingPerson = people.find(
+      (person) =>
+        person.name.toLowerCase() ===
+        cleanedName.toLowerCase()
+    );
+
+    if (existingPerson) {
+      assignPersonToCategory(existingPerson.id);
+      return;
+    }
+
+    const person = {
+      id: createId("person-"),
+      name: cleanedName,
+      colorIndex: people.length % PERSON_COLORS.length,
+      createdAt: Date.now(),
+    };
+
+    setPeople((currentPeople) => [
+      ...currentPeople,
+      person,
+    ]);
+    enqueueFirebaseWrite(`people/${person.id}`, person);
+    assignPersonToCategory(person.id);
+  };
+
   const openListModal = () => {
     setNewListName(`Lijst ${lists.length + 1}`);
     setListModalVisible(true);
@@ -1655,6 +1802,7 @@ export default function App() {
       name: cleanedName,
       items: [],
       selectedStore,
+      categoryAssignments: {},
       createdAt: Date.now(),
     };
 
@@ -1905,55 +2053,100 @@ export default function App() {
     );
   };
 
-  const renderSectionHeader = ({ section }) => (
-    <View
-      ref={(node) => {
-        const categoryRefs =
-          listCategoryDropRefs.current[section.title] ?? {};
+  const renderSectionHeader = ({ section }) => {
+    const assignedPerson = people.find(
+      (person) =>
+        person.id === categoryAssignments[section.title]
+    );
+    const personColors = getPersonColors(assignedPerson);
 
-        if (node) {
-          categoryRefs.__header = node;
-        } else {
-          delete categoryRefs.__header;
-        }
+    return (
+      <View
+        ref={(node) => {
+          const categoryRefs =
+            listCategoryDropRefs.current[section.title] ?? {};
 
-        listCategoryDropRefs.current[section.title] = categoryRefs;
-      }}
-      collapsable={false}
-      style={[
-        styles.sectionHeader,
-        activeDropCategory === section.title &&
-          styles.activeListCategoryHeader,
-      ]}
-    >
-      <View style={styles.sectionTitleGroup}>
-        <View style={styles.sectionIcon}>
-          <Ionicons
-            name={categoryIcons[section.title] ?? "basket-outline"}
-            size={15}
-            color={COLORS.primary}
-          />
+          if (node) {
+            categoryRefs.__header = node;
+          } else {
+            delete categoryRefs.__header;
+          }
+
+          listCategoryDropRefs.current[section.title] = categoryRefs;
+        }}
+        collapsable={false}
+        style={[
+          styles.sectionHeader,
+          activeDropCategory === section.title &&
+            styles.activeListCategoryHeader,
+        ]}
+      >
+        <View style={styles.sectionTitleGroup}>
+          <View style={styles.sectionIcon}>
+            <Ionicons
+              name={categoryIcons[section.title] ?? "basket-outline"}
+              size={15}
+              color={COLORS.primary}
+            />
+          </View>
+
+          <Text
+            style={[
+              styles.sectionTitle,
+              activeDropCategory === section.title &&
+                styles.activeListCategoryTitle,
+            ]}
+            numberOfLines={1}
+          >
+            {section.title}
+          </Text>
         </View>
 
-        <Text
+        <TouchableOpacity
           style={[
-            styles.sectionTitle,
-            activeDropCategory === section.title &&
-              styles.activeListCategoryTitle,
+            styles.categoryAssignmentButton,
+            assignedPerson && {
+              backgroundColor: personColors.background,
+            },
           ]}
+          onPress={() => openAssignmentPicker(section.title)}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={
+            assignedPerson
+              ? `${section.title} is toegewezen aan ${assignedPerson.name}`
+              : `Iemand toewijzen aan ${section.title}`
+          }
         >
-          {section.title}
-        </Text>
+          {assignedPerson ? (
+            <>
+              <View
+                style={[
+                  styles.categoryAssignmentDot,
+                  { backgroundColor: personColors.dot },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.categoryAssignmentName,
+                  { color: personColors.text },
+                ]}
+                numberOfLines={1}
+              >
+                {assignedPerson.name}
+              </Text>
+            </>
+          ) : (
+            <Ionicons
+              name="add"
+              size={16}
+              color={COLORS.primaryDark}
+            />
+          )}
+        </TouchableOpacity>
       </View>
-
-      {/* Category item count (optional) */}
-      {/*
-      <Text style={styles.sectionCountText}>
-        {section.data.length}
-      </Text>
-      */}
-    </View>
-  );
+    );
+  };
 
   const renderListHeader = () => (
     <>
@@ -2346,6 +2539,189 @@ export default function App() {
           </Animated.View>
         </View>
       )}
+
+      <Modal
+        visible={Boolean(assignmentCategory)}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeAssignmentPicker}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <Pressable
+            style={styles.centerModalBackdrop}
+            onPress={closeAssignmentPicker}
+          >
+            <Pressable
+              style={[styles.storeModal, styles.assignmentModal]}
+              onPress={(event) => event.stopPropagation()}
+            >
+              <View style={styles.modalHeadingRow}>
+                <View style={styles.assignmentHeadingCopy}>
+                  <Text style={styles.modalEyebrow}>
+                    TOEWIJZEN
+                  </Text>
+                  <Text style={styles.modalTitle} numberOfLines={2}>
+                    {assignmentCategory}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={closeAssignmentPicker}
+                  accessibilityLabel="Toewijzen sluiten"
+                >
+                  <Ionicons
+                    name="close"
+                    size={22}
+                    color={COLORS.text}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.assignmentDescription}>
+                Wie neemt deze categorie mee?
+              </Text>
+
+              <ScrollView
+                style={styles.assignmentPeopleScroll}
+                contentContainerStyle={styles.assignmentPeopleList}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {categoryAssignments[assignmentCategory] && (
+                  <TouchableOpacity
+                    style={styles.assignmentPersonOption}
+                    onPress={() => assignPersonToCategory(null)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.assignmentNobodyIcon}>
+                      <Ionicons
+                        name="remove"
+                        size={17}
+                        color={COLORS.textSoft}
+                      />
+                    </View>
+                    <Text style={styles.assignmentNobodyText}>
+                      Niemand
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {people.map((person) => {
+                  const colors = getPersonColors(person);
+                  const selected =
+                    categoryAssignments[assignmentCategory] ===
+                    person.id;
+
+                  return (
+                    <TouchableOpacity
+                      key={person.id}
+                      style={[
+                        styles.assignmentPersonOption,
+                        selected && {
+                          borderColor: colors.dot,
+                          backgroundColor: colors.background,
+                        },
+                      ]}
+                      onPress={() =>
+                        assignPersonToCategory(person.id)
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.assignmentPersonAvatar,
+                          { backgroundColor: colors.background },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.assignmentPersonInitial,
+                            { color: colors.text },
+                          ]}
+                        >
+                          {person.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={[
+                          styles.assignmentPersonName,
+                          { color: colors.text },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {person.name}
+                      </Text>
+
+                      {selected && (
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={20}
+                          color={colors.dot}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {people.length === 0 && (
+                  <Text style={styles.assignmentEmptyText}>
+                    Voeg hieronder eerst een naam toe.
+                  </Text>
+                )}
+              </ScrollView>
+
+              <Text style={styles.assignmentCreateLabel}>
+                Nieuwe persoon
+              </Text>
+
+              <View style={styles.assignmentCreateRow}>
+                <View
+                  style={[
+                    styles.inputContainer,
+                    styles.assignmentInputContainer,
+                  ]}
+                >
+                  <Ionicons
+                    name="person-outline"
+                    size={19}
+                    color={COLORS.textSoft}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={newPersonName}
+                    onChangeText={setNewPersonName}
+                    placeholder="Naam"
+                    placeholderTextColor="#98A19B"
+                    returnKeyType="done"
+                    onSubmitEditing={addPersonAndAssign}
+                    maxLength={30}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.assignmentAddButton,
+                    !newPersonName.trim() &&
+                      styles.assignmentAddButtonDisabled,
+                  ]}
+                  onPress={addPersonAndAssign}
+                  disabled={!newPersonName.trim()}
+                  activeOpacity={0.75}
+                  accessibilityLabel="Persoon toevoegen en toewijzen"
+                >
+                  <Ionicons name="add" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal
         visible={itemModalVisible}

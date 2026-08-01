@@ -319,6 +319,32 @@ export const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
+  categoryAssignmentButton: {
+    minWidth: 27,
+    maxWidth: 112,
+    height: 27,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 9,
+    backgroundColor: "rgba(255, 255, 255, 0.72)",
+    paddingHorizontal: 7,
+    marginLeft: 6,
+  },
+
+  categoryAssignmentDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 5,
+  },
+
+  categoryAssignmentName: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+
   sectionCountText: {
     fontSize: 12,
     fontWeight: "800",
@@ -612,6 +638,125 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: 28,
     padding: 22,
+  },
+
+  assignmentModal: {
+    maxWidth: 390,
+    maxHeight: "84%",
+  },
+
+  assignmentHeadingCopy: {
+    flex: 1,
+    marginRight: 12,
+  },
+
+  assignmentDescription: {
+    marginTop: 8,
+    marginBottom: 14,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.textSoft,
+  },
+
+  assignmentPeopleScroll: {
+    maxHeight: 285,
+    flexShrink: 1,
+  },
+
+  assignmentPeopleList: {
+    gap: 7,
+    paddingBottom: 3,
+  },
+
+  assignmentPersonOption: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceSoft,
+    paddingHorizontal: 10,
+  },
+
+  assignmentPersonAvatar: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+
+  assignmentPersonInitial: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  assignmentPersonName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  assignmentNobodyIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ECEFED",
+    marginRight: 10,
+  },
+
+  assignmentNobodyText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textSoft,
+  },
+
+  assignmentEmptyText: {
+    paddingVertical: 15,
+    paddingHorizontal: 6,
+    fontSize: 13,
+    color: COLORS.textSoft,
+    textAlign: "center",
+  },
+
+  assignmentCreateLabel: {
+    marginTop: 17,
+    marginBottom: 7,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    color: COLORS.textSoft,
+    textTransform: "uppercase",
+  },
+
+  assignmentCreateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  assignmentInputContainer: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 15,
+  },
+
+  assignmentAddButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    marginLeft: 9,
+  },
+
+  assignmentAddButtonDisabled: {
+    opacity: 0.35,
   },
 
   storeModalIcon: {
