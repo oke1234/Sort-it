@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   reload,
   sendPasswordResetEmail,
@@ -23,6 +24,16 @@ import {
 } from "firebase/auth";
 
 import { auth } from "../firebaseConfig";
+
+const APP_LANGUAGE_KEY = "SORTIT_APP_LANGUAGE";
+const LANGUAGE_OPTIONS = [
+  { code: "nl", shortLabel: "NL", label: "Nederlands" },
+  { code: "en", shortLabel: "EN", label: "English" },
+  { code: "de", shortLabel: "DE", label: "Deutsch" },
+  { code: "fr", shortLabel: "FR", label: "Français" },
+  { code: "es", shortLabel: "ES", label: "Español" },
+  { code: "it", shortLabel: "IT", label: "Italiano" },
+];
 
 const COLORS = {
   background: "#F8F8F8",
@@ -70,11 +81,36 @@ export default function ProfielScreen({ navigation }) {
   const [sendingEmailLink, setSendingEmailLink] = useState(false);
   const [sendingPasswordLink, setSendingPasswordLink] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [language, setLanguage] = useState("nl");
+  const [savingLanguage, setSavingLanguage] = useState(false);
 
   const cleanedName = name.trim();
   const cleanedEmail = newEmail.trim().toLowerCase();
   const nameIsUnchanged = cleanedName === savedName;
   const emailIsUnchanged = cleanedEmail === currentEmail.toLowerCase();
+
+  useEffect(() => {
+    let active = true;
+
+    AsyncStorage.getItem(APP_LANGUAGE_KEY)
+      .then((storedLanguage) => {
+        const languageExists = LANGUAGE_OPTIONS.some(
+          (option) => option.code === storedLanguage
+        );
+
+        if (active && languageExists) {
+          setLanguage(storedLanguage);
+          auth.languageCode = storedLanguage;
+        }
+      })
+      .catch(() => {
+        // Nederlands blijft actief als de voorkeur niet geladen kan worden.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const refreshEmail = async () => {
@@ -139,6 +175,40 @@ export default function ProfielScreen({ navigation }) {
     }
   };
 
+  const handleLanguageChange = async (nextLanguage) => {
+    if (
+      savingLanguage ||
+      nextLanguage === language ||
+      !LANGUAGE_OPTIONS.some(
+        (option) => option.code === nextLanguage
+      )
+    ) {
+      return;
+    }
+
+    const previousLanguage = language;
+
+    setLanguage(nextLanguage);
+    setSavingLanguage(true);
+    auth.languageCode = nextLanguage;
+
+    try {
+      await AsyncStorage.setItem(
+        APP_LANGUAGE_KEY,
+        nextLanguage
+      );
+    } catch {
+      setLanguage(previousLanguage);
+      auth.languageCode = previousLanguage;
+      Alert.alert(
+        "Taal niet opgeslagen",
+        "Probeer de taal opnieuw te kiezen."
+      );
+    } finally {
+      setSavingLanguage(false);
+    }
+  };
+
   const handleEmailChange = async () => {
     if (!user) {
       Alert.alert("Niet ingelogd", "Log opnieuw in om je e-mailadres te wijzigen.");
@@ -160,7 +230,7 @@ export default function ProfielScreen({ navigation }) {
 
     setSendingEmailLink(true);
     try {
-      auth.languageCode = "nl";
+      auth.languageCode = language;
       await verifyBeforeUpdateEmail(user, cleanedEmail);
       setNewEmail(cleanedEmail);
       setEmailLinkSentTo(cleanedEmail);
@@ -186,7 +256,7 @@ export default function ProfielScreen({ navigation }) {
 
     setSendingPasswordLink(true);
     try {
-      auth.languageCode = "nl";
+      auth.languageCode = language;
       await sendPasswordResetEmail(auth, currentEmail);
       Alert.alert(
         "Wachtwoordlink verstuurd",
@@ -255,6 +325,89 @@ export default function ProfielScreen({ navigation }) {
             <Text style={styles.avatarEmail}>
               {currentEmail || "Geen e-mailadres"}
             </Text>
+          </View>
+
+          <Text style={styles.sectionTitle}>Taal</Text>
+          <View style={[styles.card, styles.languageCard]}>
+            <View style={styles.languageHeader}>
+              <View style={styles.languageIcon}>
+                <Ionicons
+                  name="language-outline"
+                  size={23}
+                  color={COLORS.primaryDark}
+                />
+              </View>
+              <View style={styles.languageCopy}>
+                <Text style={styles.languageTitle}>App-taal</Text>
+                <Text style={styles.cardTextNoMargin}>
+                  Kies de taal voor SortIt en accountmails.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.languageOptions}>
+              {LANGUAGE_OPTIONS.map((option) => {
+                const selected = language === option.code;
+
+                return (
+                  <TouchableOpacity
+                    key={option.code}
+                    style={[
+                      styles.languageOption,
+                      selected && styles.languageOptionSelected,
+                    ]}
+                    onPress={() =>
+                      handleLanguageChange(option.code)
+                    }
+                    disabled={savingLanguage}
+                    activeOpacity={0.76}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: selected,
+                      disabled: savingLanguage,
+                    }}
+                    accessibilityLabel={option.label}
+                  >
+                    <View
+                      style={[
+                        styles.languageBadge,
+                        selected &&
+                          styles.languageBadgeSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.languageBadgeText,
+                          selected &&
+                            styles.languageBadgeTextSelected,
+                        ]}
+                      >
+                        {option.shortLabel}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.languageOptionText,
+                        selected &&
+                          styles.languageOptionTextSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {option.label}
+                    </Text>
+
+                    {selected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={19}
+                        color={COLORS.primaryDark}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>Persoonlijke gegevens</Text>
@@ -501,6 +654,82 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  languageCard: {
+    padding: 16,
+  },
+  languageHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  languageIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+  languageCopy: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  languageTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  languageOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 15,
+  },
+  languageOption: {
+    width: "48%",
+    flexGrow: 1,
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: "#FAFBFA",
+    paddingHorizontal: 8,
+  },
+  languageOptionSelected: {
+    borderColor: "#A9D4B1",
+    backgroundColor: COLORS.primarySoft,
+  },
+  languageBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EDF0EE",
+    marginRight: 7,
+  },
+  languageBadgeSelected: {
+    backgroundColor: COLORS.white,
+  },
+  languageBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: COLORS.gray,
+  },
+  languageBadgeTextSelected: {
+    color: COLORS.primaryDark,
+  },
+  languageOptionText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.gray,
+  },
+  languageOptionTextSelected: {
+    color: COLORS.primaryDark,
+    fontWeight: "900",
   },
   label: {
     marginBottom: 7,
