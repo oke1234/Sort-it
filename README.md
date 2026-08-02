@@ -12,7 +12,11 @@ SortIt is een mobiele boodschappenlijst-app die producten ordent in de logische 
   - Als er geen lokale match is, kan de app optioneel OpenAI gebruiken als categorisatiehulp.
 - Producten handmatig naar een andere categorie slepen.
 - De categorievolgorde aanpassen aan de gekozen supermarkt.
-- Keuze uit Lidl, Jumbo, Albert Heijn, Plus, Aldi en Spar.
+- In het profiel Nederland, België of Duitsland als supermarktland kiezen.
+- Landgebonden supermarktkeuze:
+  - Nederland: Lidl, Jumbo, Albert Heijn, Plus, Aldi en Spar.
+  - België: Colruyt, Delhaize, Carrefour en Aldi.
+  - Duitsland: Edeka, Rewe, Aldi, Lidl en Kaufland.
 - De boodschappenlijst veilig per ingelogde gebruiker opslaan in Firebase Realtime Database.
 - Geselecteerde supermarkt en lokale lijstgegevens bewaren op het toestel met AsyncStorage.
 - Elke productwijziging die naar Firebase gaat ook opslaan in een online,

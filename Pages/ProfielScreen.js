@@ -33,6 +33,11 @@ import {
   loadDataSharing,
   saveDataSharing,
 } from "../dataSharing";
+import {
+  countries,
+  DEFAULT_COUNTRY_CODE,
+  getCountryStorageKey,
+} from "../shoppingData";
 
 const LANGUAGE_OPTIONS = [
   { code: "nl", shortLabel: "NL", label: "Nederlands" },
@@ -91,6 +96,10 @@ export default function ProfielScreen({ navigation }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [language, setLanguage] = useState("nl");
   const [savingLanguage, setSavingLanguage] = useState(false);
+  const [countryCode, setCountryCode] = useState(
+    DEFAULT_COUNTRY_CODE
+  );
+  const [savingCountry, setSavingCountry] = useState(false);
   const [dataSharing, setDataSharing] = useState(
     DEFAULT_DATA_SHARING
   );
@@ -124,6 +133,30 @@ export default function ProfielScreen({ navigation }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!user?.uid) return undefined;
+
+    AsyncStorage.getItem(getCountryStorageKey(user.uid))
+      .then((storedCountryCode) => {
+        const countryExists = countries.some(
+          (country) => country.code === storedCountryCode
+        );
+
+        if (active && countryExists) {
+          setCountryCode(storedCountryCode);
+        }
+      })
+      .catch(() => {
+        // Nederland blijft actief als de voorkeur niet geladen kan worden.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     let active = true;
@@ -235,6 +268,39 @@ export default function ProfielScreen({ navigation }) {
       );
     } finally {
       setSavingLanguage(false);
+    }
+  };
+
+  const handleCountryChange = async (nextCountryCode) => {
+    if (
+      !user?.uid ||
+      savingCountry ||
+      nextCountryCode === countryCode ||
+      !countries.some(
+        (country) => country.code === nextCountryCode
+      )
+    ) {
+      return;
+    }
+
+    const previousCountryCode = countryCode;
+
+    setCountryCode(nextCountryCode);
+    setSavingCountry(true);
+
+    try {
+      await AsyncStorage.setItem(
+        getCountryStorageKey(user.uid),
+        nextCountryCode
+      );
+    } catch {
+      setCountryCode(previousCountryCode);
+      Alert.alert(
+        "Land niet opgeslagen",
+        "Probeer je land opnieuw te kiezen."
+      );
+    } finally {
+      setSavingCountry(false);
     }
   };
 
@@ -463,6 +529,91 @@ export default function ProfielScreen({ navigation }) {
                       numberOfLines={1}
                     >
                       {option.label}
+                    </Text>
+
+                    {selected && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={19}
+                        color={COLORS.primaryDark}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>Land</Text>
+          <View style={[styles.card, styles.languageCard]}>
+            <View style={styles.languageHeader}>
+              <View style={styles.languageIcon}>
+                <Ionicons
+                  name="earth-outline"
+                  size={23}
+                  color={COLORS.primaryDark}
+                />
+              </View>
+              <View style={styles.languageCopy}>
+                <Text style={styles.languageTitle}>
+                  Supermarktland
+                </Text>
+                <Text style={styles.cardTextNoMargin}>
+                  Je land bepaalt welke supermarkten je op je lijsten kunt
+                  kiezen. Bestaande lijstgegevens blijven bewaard.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.countryOptions}>
+              {countries.map((country) => {
+                const selected = countryCode === country.code;
+
+                return (
+                  <TouchableOpacity
+                    key={country.code}
+                    style={[
+                      styles.countryOption,
+                      selected && styles.languageOptionSelected,
+                    ]}
+                    onPress={() =>
+                      handleCountryChange(country.code)
+                    }
+                    disabled={savingCountry}
+                    activeOpacity={0.76}
+                    accessibilityRole="radio"
+                    accessibilityState={{
+                      checked: selected,
+                      disabled: savingCountry,
+                    }}
+                    accessibilityLabel={country.label}
+                  >
+                    <View
+                      style={[
+                        styles.languageBadge,
+                        selected &&
+                          styles.languageBadgeSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.languageBadgeText,
+                          selected &&
+                            styles.languageBadgeTextSelected,
+                        ]}
+                      >
+                        {country.shortLabel}
+                      </Text>
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.languageOptionText,
+                        selected &&
+                          styles.languageOptionTextSelected,
+                      ]}
+                    >
+                      {country.label}
                     </Text>
 
                     {selected && (
@@ -853,6 +1004,20 @@ const styles = StyleSheet.create({
   languageOptionTextSelected: {
     color: COLORS.primaryDark,
     fontWeight: "900",
+  },
+  countryOptions: {
+    marginTop: 15,
+    gap: 8,
+  },
+  countryOption: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: "#FAFBFA",
+    paddingHorizontal: 10,
   },
   sharingRow: {
     minHeight: 72,

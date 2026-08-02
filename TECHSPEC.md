@@ -28,6 +28,7 @@ bron voor ontwikkeling, testen en deployment.
 - Producten toevoegen, afvinken, verplaatsen en verwijderen.
 - Supermarktgebonden categorievolgorde.
 - Custom winkels met eigen logo en categorievolgorde.
+- Een landvoorkeur die de beschikbare supermarktketens filtert.
 - Personen aan categorieën toewijzen.
 - Een vrij notitieveld per boodschappenlijst.
 - Offline opslag en uitgestelde Firebase-synchronisatie.
@@ -149,16 +150,23 @@ bevat een timestamp wanneer het wordt afgevinkt.
 De AI-aanroep heeft een timeout van acht seconden. `Overig` wordt oranje
 weergegeven met het onderschrift `Nog te sorteren`.
 
-### 5.4 Supermarkten
+### 5.4 Landen en supermarkten
 
 Standaard ondersteund:
 
-- Lidl;
-- Jumbo;
-- Albert Heijn;
-- Plus;
-- Aldi;
-- Spar.
+| Land | Supermarkten |
+| --- | --- |
+| Nederland | Lidl, Jumbo, Albert Heijn, Plus, Aldi en Spar. |
+| België | Colruyt, Delhaize, Carrefour en Aldi. |
+| Duitsland | Edeka, Rewe, Aldi, Lidl en Kaufland. |
+
+De landkeuze staat in Profiel en wordt per gebruiker lokaal opgeslagen. Home
+laadt de voorkeur opnieuw wanneer het scherm focus krijgt. De keuzemodal toont
+alleen standaardwinkels uit het geselecteerde land plus de eigen custom
+winkels. Een bestaande lijst met een winkel uit een ander land blijft intact
+totdat de gebruiker op die lijst een andere winkel kiest. Een nieuwe lijst
+gebruikt de huidige winkel als die in het gekozen land beschikbaar is en anders
+de eerste standaardwinkel van dat land.
 
 Iedere standaardwinkel heeft een vaste categorievolgorde. Een custom winkel
 heeft een gebruikersnaam, afbeeldingsdata, categorievolgorde en aanmaaktijd.
@@ -271,6 +279,7 @@ users/{uid}/shoppingList/
 | `SELECTED_STORE` | Legacy/compatibiliteitskopie van actieve supermarkt. |
 | `SORTIT_DATA_SHARING:{uid}` | Lokale toestemming voor naam, e-mail en locatie. |
 | `SORTIT_APP_LANGUAGE` | Geselecteerde taalcode. |
+| `SORTIT_APP_COUNTRY:{uid}` | Geselecteerd supermarktland, standaard `nl`. |
 
 ### 7.2 Synchronisatiegedrag
 
@@ -376,6 +385,14 @@ worden momenteel niet tussen apparaten gesynchroniseerd.
 Ondersteunde metadatacodes zijn `nl`, `en`, `de`, `fr`, `es` en `it`. De huidige
 interface is grotendeels Nederlandstalig; de taalkeuze is nog geen volledig
 i18n-systeem.
+
+### 9.4 Landvoorkeur
+
+- Ondersteunde codes zijn `nl`, `be` en `de`.
+- Nederland is de standaard wanneer geen geldige voorkeur bestaat.
+- De voorkeur filtert supermarktkeuzes, maar verwijdert of herschrijft geen
+  bestaande lijsten.
+- De voorkeur wordt momenteel lokaal per Firebase gebruiker-ID opgeslagen.
 
 ## 10. Configuratie
 
@@ -502,6 +519,9 @@ lengtes valideren.
 - Afvinken vult `completedAt`; terugzetten maakt `completedAt` weer `null`.
 - Slepen wijzigt alleen de categorie van het gekozen product.
 - Offline wijzigingen blijven na app-herstart zichtbaar en synchroniseren later.
+- De lijstenrail kan horizontaal tot aan de rechter schermrand doorscrollen.
+- Een landwissel toont de juiste standaardwinkels zonder bestaande lijsten te
+  verwijderen.
 
 ### 14.3 Notitieblok
 

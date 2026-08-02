@@ -50,6 +50,9 @@ import {
   storeRoutes,
   customStoreCategories,
   categoryIcons,
+  countries,
+  DEFAULT_COUNTRY_CODE,
+  getCountryStorageKey,
 } from "../shoppingData";
 
 import { getCategory } from "../categoryService";
@@ -579,6 +582,9 @@ export default function App() {
     useState(null);
   const [isNotePadOpen, setIsNotePadOpen] =
     useState(false);
+  const [countryCode, setCountryCode] = useState(
+    DEFAULT_COUNTRY_CODE
+  );
 
   const dragPosition = useRef(
     new Animated.ValueXY()
@@ -617,6 +623,49 @@ export default function App() {
   });
 
   const navigation = useNavigation();
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCountry = async () => {
+      const userId = auth.currentUser?.uid;
+
+      if (!userId) {
+        if (active) setCountryCode(DEFAULT_COUNTRY_CODE);
+        return;
+      }
+
+      try {
+        const storedCountryCode = await AsyncStorage.getItem(
+          getCountryStorageKey(userId)
+        );
+        const countryExists = countries.some(
+          (country) => country.code === storedCountryCode
+        );
+
+        if (active) {
+          setCountryCode(
+            countryExists
+              ? storedCountryCode
+              : DEFAULT_COUNTRY_CODE
+          );
+        }
+      } catch {
+        if (active) setCountryCode(DEFAULT_COUNTRY_CODE);
+      }
+    };
+
+    loadCountry();
+    const unsubscribeFocus = navigation.addListener(
+      "focus",
+      loadCountry
+    );
+
+    return () => {
+      active = false;
+      unsubscribeFocus();
+    };
+  }, [navigation]);
 
   const activeList =
     lists.find((list) => list.id === activeListId) ??
@@ -711,15 +760,34 @@ export default function App() {
 
   const isOffline = networkStatusKnown && !isOnline;
 
+  const countryStores = useMemo(
+    () =>
+      stores.filter((store) =>
+        store.countryCodes?.includes(countryCode)
+      ),
+    [countryCode]
+  );
+
   const allStores = useMemo(
+    () => [...countryStores, ...customStores],
+    [countryStores, customStores]
+  );
+
+  const allKnownStores = useMemo(
     () => [...stores, ...customStores],
     [customStores]
   );
 
+  const currentCountry =
+    countries.find((country) => country.code === countryCode) ??
+    countries[0];
+
+  const defaultCountryStore = countryStores[0] ?? stores[0];
+
   const currentStore =
-    allStores.find(
+    allKnownStores.find(
       (store) => store.name === selectedStore
-    ) ?? stores[0];
+    ) ?? defaultCountryStore;
 
   const routeCategories = useMemo(
     () => {
@@ -730,10 +798,11 @@ export default function App() {
       return (
         customStore?.categories ??
         storeRoutes[selectedStore] ??
+        storeRoutes[defaultCountryStore.name] ??
         storeRoutes.Lidl
       );
     },
-    [customStores, selectedStore]
+    [customStores, defaultCountryStore.name, selectedStore]
   );
 
   const measureInDragCoordinates = useCallback(
@@ -1822,7 +1891,7 @@ export default function App() {
       return;
     }
 
-    const storeNameExists = allStores.some(
+    const storeNameExists = allKnownStores.some(
       (store) =>
         store.name.toLowerCase() ===
         cleanedName.toLowerCase()
@@ -1871,8 +1940,8 @@ export default function App() {
       affectedLists.length === 0
         ? ""
         : affectedLists.length === 1
-        ? "1 lijst gebruikt deze winkel en wordt teruggezet naar Lidl."
-        : `${affectedLists.length} lijsten gebruiken deze winkel en worden teruggezet naar Lidl.`;
+        ? `1 lijst gebruikt deze winkel en wordt teruggezet naar ${defaultCountryStore.name}.`
+        : `${affectedLists.length} lijsten gebruiken deze winkel en worden teruggezet naar ${defaultCountryStore.name}.`;
     const removeMessage = [
       `Wil je "${customStore.name}" verwijderen?`,
       affectedListCopy,
@@ -1904,7 +1973,7 @@ export default function App() {
                   list.selectedStore === customStore.name
                     ? {
                         ...list,
-                        selectedStore: "Lidl",
+                        selectedStore: defaultCountryStore.name,
                       }
                     : list
                 )
@@ -1919,7 +1988,7 @@ export default function App() {
             affectedLists.forEach((list) => {
               enqueueFirebaseWrite(
                 `lists/${list.id}/selectedStore`,
-                "Lidl"
+                defaultCountryStore.name
               );
             });
           },
@@ -2018,11 +2087,17 @@ export default function App() {
 
     if (!user || !cleanedName) return;
 
+    const initialStoreName = allStores.some(
+      (store) => store.name === selectedStore
+    )
+      ? selectedStore
+      : defaultCountryStore.name;
+
     const list = {
       id: createId("list-"),
       name: cleanedName,
       items: [],
-      selectedStore,
+      selectedStore: initialStoreName,
       categoryAssignments: {},
       note: "",
       createdAt: Date.now(),
@@ -2498,11 +2573,19 @@ export default function App() {
             accessibilityLabel={`Supermarkt kiezen. Huidige supermarkt: ${selectedStore}`}
           >
             <View style={styles.storeSelectorIcon}>
-              <Image
-                source={getStoreLogoSource(currentStore)}
-                style={styles.storeLogo}
-                resizeMode="contain"
-              />
+              {getStoreLogoSource(currentStore) ? (
+                <Image
+                  source={getStoreLogoSource(currentStore)}
+                  style={styles.storeLogo}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Ionicons
+                  name="storefront-outline"
+                  size={20}
+                  color={COLORS.primary}
+                />
+              )}
             </View>
 
             <Text
@@ -3260,7 +3343,8 @@ export default function App() {
             <Text style={styles.storeModalTitle}>Kies je Supermarkt</Text>
 
             <Text style={styles.storeModalText}>
-              De volgorde van de categorieën past zich aan de Supermarkt aan.
+              Kies een supermarkt in {currentCountry.label}. De volgorde van de
+              categorieën past zich aan je keuze aan.
             </Text>
 
             <ScrollView
@@ -3284,11 +3368,23 @@ export default function App() {
                       onPress={() => selectStore(store.name)}
                       activeOpacity={0.75}
                     >
-                      <Image
-                        source={getStoreLogoSource(store)}
-                        style={styles.storeOptionLogo}
-                        resizeMode="contain"
-                      />
+                      {getStoreLogoSource(store) ? (
+                        <Image
+                          source={getStoreLogoSource(store)}
+                          style={styles.storeOptionLogo}
+                          resizeMode="contain"
+                        />
+                      ) : (
+                        <View
+                          style={styles.storeOptionLogoFallback}
+                        >
+                          <Ionicons
+                            name="storefront-outline"
+                            size={20}
+                            color={COLORS.primary}
+                          />
+                        </View>
+                      )}
 
                       <Text
                         style={[

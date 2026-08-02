@@ -231,7 +231,7 @@ export const styles = StyleSheet.create({
 
   listTabsContent: {
     alignItems: "center",
-    paddingRight: 4,
+    paddingRight: 22,
   },
 
   listTabsRow: {
@@ -241,6 +241,7 @@ export const styles = StyleSheet.create({
 
   listTabsScroller: {
     flex: 1,
+    marginRight: -18,
   },
 
   listTab: {
@@ -469,6 +470,16 @@ export const styles = StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: 12,
+  },
+
+  storeOptionLogoFallback: {
+    width: 28,
+    height: 28,
+    marginRight: 12,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
   },
 
   lastItemRow: {

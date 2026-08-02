@@ -1,37 +1,106 @@
 export const STORAGE_KEY = "SHOPPING_ITEMS";
 export const STORE_KEY = "SELECTED_STORE";
+export const COUNTRY_STORAGE_KEY = "SORTIT_APP_COUNTRY";
+export const DEFAULT_COUNTRY_CODE = "nl";
+
+export const countries = [
+  { code: "nl", shortLabel: "NL", label: "Nederland" },
+  { code: "be", shortLabel: "BE", label: "België" },
+  { code: "de", shortLabel: "DE", label: "Duitsland" },
+];
+
+export const getCountryStorageKey = (userId) =>
+  `${COUNTRY_STORAGE_KEY}:${userId}`;
 
 export const stores = [
   {
     id: "lidl",
     name: "Lidl",
     logo: require("./assets/logos/lidl.png"),
+    countryCodes: ["nl", "de"],
   },
   {
     id: "jumbo",
     name: "Jumbo",
     logo: require("./assets/logos/jumbo.png"),
+    countryCodes: ["nl"],
   },
   {
     id: "ah",
     name: "Albert Heijn",
     logo: require("./assets/logos/albert-heijn.png"),
+    countryCodes: ["nl"],
   },
   {
     id: "plus",
     name: "Plus",
     logo: require("./assets/logos/plus.png"),
+    countryCodes: ["nl"],
   },
   {
     id: "aldi",
     name: "Aldi",
     logo: require("./assets/logos/aldi.png"),
+    countryCodes: ["nl", "be", "de"],
   },
   {
     id: "spar",
     name: "Spar",
     logo: require("./assets/logos/spar.png"),
+    countryCodes: ["nl"],
   },
+  {
+    id: "colruyt",
+    name: "Colruyt",
+    logo: require("./assets/logos/colruyt.png"),
+    countryCodes: ["be"],
+  },
+  {
+    id: "delhaize",
+    name: "Delhaize",
+    logo: require("./assets/logos/delhaize.png"),
+    countryCodes: ["be"],
+  },
+  {
+    id: "carrefour",
+    name: "Carrefour",
+    logo: require("./assets/logos/carrefour.png"),
+    countryCodes: ["be"],
+  },
+  {
+    id: "edeka",
+    name: "Edeka",
+    logo: require("./assets/logos/edeka.png"),
+    countryCodes: ["de"],
+  },
+  {
+    id: "rewe",
+    name: "Rewe",
+    logo: require("./assets/logos/rewe.png"),
+    countryCodes: ["de"],
+  },
+  {
+    id: "kaufland",
+    name: "Kaufland",
+    logo: require("./assets/logos/kaufland.png"),
+    countryCodes: ["de"],
+  },
+];
+
+const GENERAL_STORE_ROUTE = [
+  "Groente en fruit",
+  "Brood",
+  "Vlees en vis",
+  "Koeling en zuivel",
+  "Ontbijt",
+  "Pasta en rijst",
+  "Conserven",
+  "Sauzen en kruiden",
+  "Snacks en snoep",
+  "Drinken",
+  "Diepvries",
+  "Huishouden",
+  "Overig",
 ];
 
 export const storeRoutes = {
@@ -130,6 +199,13 @@ export const storeRoutes = {
     "Huishouden",
     "Overig",
   ],
+
+  Colruyt: [...GENERAL_STORE_ROUTE],
+  Delhaize: [...GENERAL_STORE_ROUTE],
+  Carrefour: [...GENERAL_STORE_ROUTE],
+  Edeka: [...GENERAL_STORE_ROUTE],
+  Rewe: [...GENERAL_STORE_ROUTE],
+  Kaufland: [...GENERAL_STORE_ROUTE],
 };
 
 export const customStoreCategories = [
