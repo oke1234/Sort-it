@@ -53,6 +53,8 @@ import {
 } from "../shoppingData";
 
 import { getCategory } from "../categoryService";
+import { appendToGoogleSheetsArchive } from "../googleSheetsArchive";
+import { getSheetSharingContext } from "../dataSharing";
 
 const DRAG_HOLD_MS = 500;
 const DEFAULT_LIST_ID = "default";
@@ -71,6 +73,16 @@ const createId = (prefix = "") =>
   `${prefix}${Date.now()}${Math.random()
     .toString(36)
     .slice(2, 8)}`;
+
+const toIsoString = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toISOString();
+};
 
 const createDefaultList = ({
   items = [],
@@ -937,6 +949,48 @@ export default function App() {
 
         if (!operation) break;
 
+        // Eerst naar de append-only Google Sheet schrijven. Als dit niet lukt,
+        // sturen we ook niets naar Firebase: zo blijft deze actie in de
+        // bestaande synchronisatiewachtrij staan en gaat geen regel verloren.
+        const sheetArchiveRecords =
+          operation.sheetArchiveRecords ??
+          operation.localArchiveRecords;
+
+        if (sheetArchiveRecords?.length) {
+          // Vul gegevens aan voor acties die nog met een oudere appversie in
+          // de offline wachtrij stonden.
+          const sharingContext =
+            await getSheetSharingContext(user);
+          const normalizedSheetRecords =
+            sheetArchiveRecords.map((record) => ({
+              eventId: record.eventId,
+              userId: record.userId ?? operation.userId,
+              supermarkt:
+                record.supermarkt ?? "Onbekend",
+              product: record.product,
+              completed:
+                typeof record.completed === "boolean"
+                  ? record.completed
+                  : operation.path.endsWith("/completed")
+                  ? Boolean(operation.value)
+                  : typeof operation.value === "object" &&
+                    operation.value !== null
+                  ? Boolean(operation.value.completed)
+                  : false,
+              creationTime:
+                record.creationTime ??
+                toIsoString(operation.value?.createdAt),
+              completionTime:
+                record.completionTime ??
+                toIsoString(operation.value?.completedAt),
+              ...sharingContext,
+            }));
+
+          await appendToGoogleSheetsArchive(
+            normalizedSheetRecords
+          );
+        }
+
         await set(
           ref(
             db,
@@ -965,18 +1019,38 @@ export default function App() {
   }, [isOnline, persistPendingOperations]);
 
   const enqueueFirebaseWrite = useCallback(
-    (path, value) => {
+    (path, value, archiveDetails = {}) => {
       const userId =
         currentUserIdRef.current ??
         auth.currentUser?.uid;
 
       if (!userId) return;
 
+      const operationId = createId("sync-");
+      const operationTime = Date.now();
       const operation = {
-        id: createId("sync-"),
+        id: operationId,
         userId,
         path,
         value,
+        sheetArchiveRecords: (
+          archiveDetails.items ?? []
+        )
+          .filter((item) => item?.name)
+          .map((item, index) => ({
+            eventId: `data-${operationId}-${index}`,
+            userId,
+            supermarkt:
+              archiveDetails.supermarkt ?? "Onbekend",
+            product: item.name,
+            completed: Boolean(item.completed),
+            creationTime: toIsoString(item.createdAt),
+            completionTime: item.completed
+              ? toIsoString(
+                  item.completedAt ?? operationTime
+                )
+              : "",
+          })),
       };
 
       const nextOperations = [
@@ -1020,8 +1094,11 @@ export default function App() {
   const updateItemCategory = useCallback(
     (itemId, category) => {
       const user = auth.currentUser;
+      const item = items.find(
+        (currentItem) => currentItem.id === itemId
+      );
 
-      if (!user) return;
+      if (!user || !item) return;
 
       setItems((currentItems) =>
         currentItems.map((item) =>
@@ -1036,12 +1113,18 @@ export default function App() {
 
       enqueueFirebaseWrite(
         `lists/${activeListId}/items/${itemId}/category`,
-        category
+        category,
+        {
+          supermarkt: selectedStore,
+          items: [{ ...item, category }],
+        }
       );
     },
     [
       activeListId,
       enqueueFirebaseWrite,
+      items,
+      selectedStore,
       setItems,
     ]
   );
@@ -1385,6 +1468,7 @@ export default function App() {
         name: cleanedName,
         category,
         completed: false,
+        completedAt: null,
         createdAt: Date.now(),
       };
 
@@ -1397,7 +1481,11 @@ export default function App() {
 
       enqueueFirebaseWrite(
         `lists/${activeListId}/items/${item.id}`,
-        item
+        item,
+        {
+          supermarkt: selectedStore,
+          items: [item],
+        }
       );
 
       closeItemModal();
@@ -1421,28 +1509,38 @@ export default function App() {
     if (!user || !item) return;
 
     const completed = !item.completed;
+    const completedAt = completed ? Date.now() : null;
+    const updatedItem = {
+      ...item,
+      completed,
+      completedAt,
+    };
 
     setItems((currentItems) =>
       currentItems.map((currentItem) =>
         currentItem.id === id
           ? {
-              ...currentItem,
-              completed,
+              ...updatedItem,
             }
           : currentItem
       )
     );
 
     enqueueFirebaseWrite(
-      `lists/${activeListId}/items/${id}/completed`,
-      completed
+      `lists/${activeListId}/items/${id}`,
+      updatedItem,
+      {
+        supermarkt: selectedStore,
+        items: [updatedItem],
+      }
     );
   };
 
   const removeItem = (id) => {
     const user = auth.currentUser;
+    const item = items.find((currentItem) => currentItem.id === id);
 
-    if (!user) return;
+    if (!user || !item) return;
 
     setItems((currentItems) =>
       currentItems.filter((item) => item.id !== id)
@@ -1450,7 +1548,11 @@ export default function App() {
 
     enqueueFirebaseWrite(
       `lists/${activeListId}/items/${id}`,
-      null
+      null,
+      {
+        supermarkt: selectedStore,
+        items: [item],
+      }
     );
   };
 
@@ -1931,7 +2033,11 @@ export default function App() {
             completedItems.forEach((item) => {
               enqueueFirebaseWrite(
                 `lists/${activeListId}/items/${item.id}`,
-                null
+                null,
+                {
+                  supermarkt: selectedStore,
+                  items: [item],
+                }
               );
             });
           },
@@ -1964,7 +2070,11 @@ export default function App() {
             setItems([]);
             enqueueFirebaseWrite(
               `lists/${activeListId}/items`,
-              null
+              null,
+              {
+                supermarkt: selectedStore,
+                items,
+              }
             );
           },
         },

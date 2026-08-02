@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { styles, COLORS } from "../styles";
@@ -14,12 +17,43 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // Importeer Firebase auth & extra tools om profiel te updaten
 import { auth } from "../firebaseConfig";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import * as Location from "expo-location";
+import {
+  DATA_SHARING_OPTIONS,
+  DEFAULT_DATA_SHARING,
+  saveDataSharing,
+} from "../dataSharing";
 
 export default function CreateAccountScreen({ navigation }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [dataSharing, setDataSharing] = useState(
+    DEFAULT_DATA_SHARING
+  );
+
+  const handleSharingChange = async (key, enabled) => {
+    if (loading) return;
+
+    if (key === "shareLocation" && enabled) {
+      const permission =
+        await Location.requestForegroundPermissionsAsync();
+
+      if (permission.status !== "granted") {
+        Alert.alert(
+          "Locatie niet toegestaan",
+          "De locatieschakelaar blijft uit. Je kunt dit later opnieuw proberen via je profiel."
+        );
+        return;
+      }
+    }
+
+    setDataSharing((currentSharing) => ({
+      ...currentSharing,
+      [key]: enabled,
+    }));
+  };
 
   const handleSignUp = async () => {
     if (!name || !email || !password) {
@@ -41,6 +75,23 @@ export default function CreateAccountScreen({ navigation }) {
         displayName: name.trim(),
       });
 
+      try {
+        await saveDataSharing(
+          userCredential.user.uid,
+          dataSharing
+        );
+      } catch (error) {
+        console.warn(
+          "Datatoestemmingen na registratie opslaan mislukt:",
+          error
+        );
+        Alert.alert(
+          "Account aangemaakt",
+          "Je account is aangemaakt, maar de datatoestemmingen konden niet worden opgeslagen. Controleer ze opnieuw in je profiel."
+        );
+        return;
+      }
+
       Alert.alert("Succes", "Je account is aangemaakt!");
     } catch (error) {
       let errorMessage = "Er is iets misgegaan bij het registreren.";
@@ -59,6 +110,11 @@ export default function CreateAccountScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        contentContainerStyle={accountStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.container2}>
 
         <TouchableOpacity
@@ -139,6 +195,61 @@ export default function CreateAccountScreen({ navigation }) {
             />
           </View>
 
+          <View style={accountStyles.sharingCard}>
+            <Text style={accountStyles.sharingHeading}>
+              Data-toestemmingen
+            </Text>
+            <Text style={accountStyles.sharingIntro}>
+              Kies wat je met SortIt wilt delen. Alles staat standaard uit en
+              kan later in je profiel worden gewijzigd.
+            </Text>
+
+            {DATA_SHARING_OPTIONS.map((option, index) => (
+              <View
+                key={option.key}
+                style={[
+                  accountStyles.sharingRow,
+                  index > 0 && accountStyles.sharingRowBorder,
+                ]}
+              >
+                <View style={accountStyles.sharingIcon}>
+                  <Ionicons
+                    name={option.icon}
+                    size={20}
+                    color={COLORS.primaryDark}
+                  />
+                </View>
+
+                <View style={accountStyles.sharingCopy}>
+                  <Text style={accountStyles.sharingTitle}>
+                    {option.title}
+                  </Text>
+                  <Text style={accountStyles.sharingDescription}>
+                    {option.description}
+                  </Text>
+                </View>
+
+                <Switch
+                  value={dataSharing[option.key]}
+                  onValueChange={(enabled) =>
+                    handleSharingChange(option.key, enabled)
+                  }
+                  disabled={loading}
+                  trackColor={{
+                    false: "#D7DDD9",
+                    true: "#A9DAB1",
+                  }}
+                  thumbColor={
+                    dataSharing[option.key]
+                      ? COLORS.primary
+                      : "#FFFFFF"
+                  }
+                  accessibilityLabel={option.title}
+                />
+              </View>
+            ))}
+          </View>
+
           <TouchableOpacity
             style={[styles.saveButton, { marginTop: 28 }]}
             activeOpacity={0.8}
@@ -181,6 +292,67 @@ export default function CreateAccountScreen({ navigation }) {
 
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
+
+const accountStyles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 36,
+  },
+  sharingCard: {
+    marginTop: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+  },
+  sharingHeading: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+  sharingIntro: {
+    marginTop: 5,
+    marginBottom: 8,
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.textSoft,
+  },
+  sharingRow: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  sharingRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  sharingIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+  sharingCopy: {
+    flex: 1,
+    marginHorizontal: 11,
+  },
+  sharingTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  sharingDescription: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textSoft,
+  },
+});

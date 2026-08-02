@@ -15,6 +15,10 @@ SortIt is een mobiele boodschappenlijst-app die producten ordent in de logische 
 - Keuze uit Lidl, Jumbo, Albert Heijn, Plus, Aldi en Spar.
 - De boodschappenlijst veilig per ingelogde gebruiker opslaan in Firebase Realtime Database.
 - Geselecteerde supermarkt en lokale lijstgegevens bewaren op het toestel met AsyncStorage.
+- Elke productwijziging die naar Firebase gaat ook opslaan in een online,
+  append-only Google Sheet met gebruiker-ID, supermarkt, productnaam,
+  completion-status, tijden en taal. Naam, e-mail en locatie worden uitsluitend
+  toegevoegd na afzonderlijke toestemming in het profiel.
 - Profiel beheren: naam wijzigen, e-mailadres wijzigen via een bevestigingslink en een wachtwoord-resetlink aanvragen.
 - Uitloggen.
 
@@ -78,6 +82,12 @@ EXPO_PUBLIC_OPENAI_API_KEY=jouw_api_sleutel
 
 > Let op: variabelen met `EXPO_PUBLIC_` worden opgenomen in de app en zijn dus niet geheim. Gebruik voor een productie-app geen geheime OpenAI-sleutel rechtstreeks in de mobiele client; laat zulke verzoeken via een eigen beveiligde server lopen.
 
+## Google Sheets-archief
+
+Volg de complete stappen in [GOOGLE_SHEETS_SETUP.md](GOOGLE_SHEETS_SETUP.md).
+De app voegt iedere regel alleen toe; bestaande regels worden nooit gewijzigd
+of verwijderd.
+
 ## Projectstructuur
 
 ```text
@@ -94,4 +104,10 @@ firebaseConfig.js      Firebase-configuratie
 
 ## Privacy en gegevens
 
-De app gebruikt Firebase Authentication voor accounts en Firebase Realtime Database voor boodschappenlijsten. Als AI-categorisatie is ingeschakeld, wordt de ingevoerde productnaam naar de OpenAI API gestuurd om een categorie te bepalen.
+De app gebruikt Firebase Authentication voor accounts en Firebase Realtime
+Database voor boodschappenlijsten. Productacties worden append-only opgeslagen
+in de ingestelde Google Sheet. De app-taal wordt daarbij opgeslagen. Naam,
+e-mail en foreground-locatie worden alleen aan nieuwe regels toegevoegd als de
+gebruiker iedere gegevenssoort afzonderlijk in het profiel toestaat. Als
+AI-categorisatie is ingeschakeld, wordt de ingevoerde productnaam naar de
+OpenAI API gestuurd om een categorie te bepalen.

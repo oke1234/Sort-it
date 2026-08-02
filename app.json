@@ -20,6 +20,12 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen voor het Google Sheets-archief wanneer je Locatie toestaan in je profiel hebt ingeschakeld."
+        }
       ]
     ],
     "ios": {

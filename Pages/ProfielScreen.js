@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,10 +23,17 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
 } from "firebase/auth";
+import * as Location from "expo-location";
 
 import { auth } from "../firebaseConfig";
+import {
+  APP_LANGUAGE_KEY,
+  DATA_SHARING_OPTIONS,
+  DEFAULT_DATA_SHARING,
+  loadDataSharing,
+  saveDataSharing,
+} from "../dataSharing";
 
-const APP_LANGUAGE_KEY = "SORTIT_APP_LANGUAGE";
 const LANGUAGE_OPTIONS = [
   { code: "nl", shortLabel: "NL", label: "Nederlands" },
   { code: "en", shortLabel: "EN", label: "English" },
@@ -83,6 +91,11 @@ export default function ProfielScreen({ navigation }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [language, setLanguage] = useState("nl");
   const [savingLanguage, setSavingLanguage] = useState(false);
+  const [dataSharing, setDataSharing] = useState(
+    DEFAULT_DATA_SHARING
+  );
+  const [savingSharingKey, setSavingSharingKey] =
+    useState(null);
 
   const cleanedName = name.trim();
   const cleanedEmail = newEmail.trim().toLowerCase();
@@ -111,6 +124,22 @@ export default function ProfielScreen({ navigation }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    loadDataSharing(user?.uid)
+      .then((savedSharing) => {
+        if (active) setDataSharing(savedSharing);
+      })
+      .catch(() => {
+        // Alles blijft standaard uit als de voorkeur niet geladen kan worden.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
 
   useEffect(() => {
     const refreshEmail = async () => {
@@ -206,6 +235,45 @@ export default function ProfielScreen({ navigation }) {
       );
     } finally {
       setSavingLanguage(false);
+    }
+  };
+
+  const handleSharingChange = async (key, enabled) => {
+    if (!user || savingSharingKey) return;
+
+    setSavingSharingKey(key);
+
+    try {
+      if (key === "shareLocation" && enabled) {
+        const permission =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (permission.status !== "granted") {
+          Alert.alert(
+            "Locatie niet toegestaan",
+            "Locatie wordt niet gedeeld. Je kunt toestemming later opnieuw inschakelen via je profiel en de apparaatinstellingen."
+          );
+          return;
+        }
+      }
+
+      const nextSharing = await saveDataSharing(
+        user.uid,
+        {
+          ...dataSharing,
+          [key]: enabled,
+        }
+      );
+
+      setDataSharing(nextSharing);
+    } catch (error) {
+      console.error("Datatoestemming opslaan mislukt:", error);
+      Alert.alert(
+        "Toestemming niet opgeslagen",
+        "Controleer je internetverbinding en probeer het opnieuw."
+      );
+    } finally {
+      setSavingSharingKey(null);
     }
   };
 
@@ -408,6 +476,61 @@ export default function ProfielScreen({ navigation }) {
                 );
               })}
             </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>Data delen</Text>
+          <View style={styles.card}>
+            <Text style={styles.cardText}>
+              Kies welke persoonlijke gegevens bij nieuwe productregels in
+              het Google Sheets-archief mogen worden opgeslagen. Je kunt dit
+              op ieder moment wijzigen. Uitschakelen stopt nieuwe delingen;
+              eerder opgeslagen archiefregels blijven bewaard.
+            </Text>
+
+            {DATA_SHARING_OPTIONS.map((option, index) => (
+              <View
+                key={option.key}
+                style={[
+                  styles.sharingRow,
+                  index > 0 && styles.sharingRowBorder,
+                ]}
+              >
+                <View style={styles.sharingIcon}>
+                  <Ionicons
+                    name={option.icon}
+                    size={21}
+                    color={COLORS.primaryDark}
+                  />
+                </View>
+
+                <View style={styles.sharingCopy}>
+                  <Text style={styles.sharingTitle}>
+                    {option.title}
+                  </Text>
+                  <Text style={styles.sharingDescription}>
+                    {option.description}
+                  </Text>
+                </View>
+
+                <Switch
+                  value={dataSharing[option.key]}
+                  onValueChange={(enabled) =>
+                    handleSharingChange(option.key, enabled)
+                  }
+                  disabled={savingSharingKey !== null}
+                  trackColor={{
+                    false: "#D7DDD9",
+                    true: "#A9DAB1",
+                  }}
+                  thumbColor={
+                    dataSharing[option.key]
+                      ? COLORS.primary
+                      : "#FFFFFF"
+                  }
+                  accessibilityLabel={option.title}
+                />
+              </View>
+            ))}
           </View>
 
           <Text style={styles.sectionTitle}>Persoonlijke gegevens</Text>
@@ -730,6 +853,39 @@ const styles = StyleSheet.create({
   languageOptionTextSelected: {
     color: COLORS.primaryDark,
     fontWeight: "900",
+  },
+  sharingRow: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 11,
+  },
+  sharingRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  sharingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+  sharingCopy: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  sharingTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  sharingDescription: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.gray,
   },
   label: {
     marginBottom: 7,
