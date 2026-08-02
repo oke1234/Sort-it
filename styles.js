@@ -40,6 +40,34 @@ export const styles = StyleSheet.create({
     },
   },
 
+  notePadIcon: {
+    position: "absolute",
+    right: 36,
+    bottom: 168,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+    elevation: 4,
+    shadowColor: COLORS.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 7,
+  },
+
+  notePadIconActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+
   container: {
     flex: 1,
     marginTop: 0,
@@ -54,6 +82,49 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 170,
+  },
+
+  notePadScroll: {
+    flex: 1,
+  },
+
+  notePadContent: {
+    flexGrow: 1,
+  },
+
+  notePadDismissArea: {
+    flexGrow: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+
+  notePadCard: {
+    minHeight: 360,
+    flexGrow: 1,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: "#F0C990",
+    borderRadius: 18,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: COLORS.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+  },
+
+  notePadInput: {
+    minHeight: 360,
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 17,
+    paddingBottom: 24,
+    fontSize: 16,
+    lineHeight: 24,
+    color: COLORS.text,
   },
 
   emptyListContent: {
@@ -302,6 +373,11 @@ export const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  sectionTitleCopy: {
+    flex: 1,
+    justifyContent: "center",
+  },
+
   sectionIcon: {
     width: 25,
     height: 25,
@@ -313,10 +389,29 @@ export const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    flex: 1,
     fontSize: 13,
     fontWeight: "900",
     color: COLORS.text,
+  },
+
+  unsortedSectionHeader: {
+    backgroundColor: "#FFF0DC",
+  },
+
+  unsortedSectionIcon: {
+    backgroundColor: "#FFE0B5",
+  },
+
+  unsortedSectionTitle: {
+    color: "#B95700",
+  },
+
+  unsortedSectionSubtitle: {
+    marginTop: 1,
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.15,
+    color: "#D96B0B",
   },
 
   categoryAssignmentButton: {

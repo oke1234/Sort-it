@@ -88,12 +88,14 @@ const createDefaultList = ({
   items = [],
   selectedStore = "Lidl",
   categoryAssignments = {},
+  note = "",
 } = {}) => ({
   id: DEFAULT_LIST_ID,
   name: "Lijst 1",
   items,
   selectedStore,
   categoryAssignments,
+  note,
   createdAt: Date.now(),
 });
 
@@ -229,6 +231,10 @@ const normalizeShoppingLists = (data = {}) => {
       categoryAssignments: normalizeCategoryAssignments(
         list.categoryAssignments
       ),
+      note:
+        typeof list.note === "string"
+          ? list.note
+          : "",
       createdAt: list.createdAt ?? Date.now() + index,
     }))
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -262,6 +268,7 @@ const serializeList = (list) => ({
   name: list.name,
   selectedStore: list.selectedStore,
   categoryAssignments: list.categoryAssignments ?? {},
+  note: list.note ?? "",
   createdAt: list.createdAt,
   items: Object.fromEntries(
     list.items.map((item) => [item.id, item])
@@ -570,6 +577,8 @@ export default function App() {
   const [draggedItem, setDraggedItem] = useState(null);
   const [activeDropCategory, setActiveDropCategory] =
     useState(null);
+  const [isNotePadOpen, setIsNotePadOpen] =
+    useState(false);
 
   const dragPosition = useRef(
     new Animated.ValueXY()
@@ -601,6 +610,11 @@ export default function App() {
   const enqueueFirebaseWriteRef = useRef(null);
   const flushPendingOperationsRef = useRef(null);
   const isOfflineRef = useRef(false);
+  const noteSyncRef = useRef({
+    timeout: null,
+    listId: null,
+    value: "",
+  });
 
   const navigation = useNavigation();
 
@@ -613,6 +627,7 @@ export default function App() {
     activeList?.selectedStore ?? "Lidl";
   const categoryAssignments =
     activeList?.categoryAssignments ?? {};
+  const activeListNote = activeList?.note ?? "";
 
   const setItems = useCallback(
     (itemsOrUpdater) => {
@@ -1091,6 +1106,108 @@ export default function App() {
     flushPendingOperations;
   isOfflineRef.current = isOffline;
 
+  const flushPendingNote = useCallback(() => {
+    const pendingNote = noteSyncRef.current;
+
+    if (pendingNote.timeout) {
+      clearTimeout(pendingNote.timeout);
+    }
+
+    noteSyncRef.current = {
+      timeout: null,
+      listId: null,
+      value: "",
+    };
+
+    if (!pendingNote.listId) return;
+
+    enqueueFirebaseWrite(
+      `lists/${pendingNote.listId}/note`,
+      pendingNote.value
+    );
+  }, [enqueueFirebaseWrite]);
+
+  const updateActiveListNote = useCallback(
+    (value) => {
+      const listId = activeListId;
+
+      setLists((currentLists) =>
+        currentLists.map((list) =>
+          list.id === listId
+            ? {
+                ...list,
+                note: value,
+              }
+            : list
+        )
+      );
+
+      if (noteSyncRef.current.timeout) {
+        clearTimeout(noteSyncRef.current.timeout);
+      }
+
+      const timeout = setTimeout(() => {
+        const pendingNote = noteSyncRef.current;
+
+        if (pendingNote.listId !== listId) return;
+
+        noteSyncRef.current = {
+          timeout: null,
+          listId: null,
+          value: "",
+        };
+
+        enqueueFirebaseWrite(
+          `lists/${listId}/note`,
+          pendingNote.value
+        );
+      }, 700);
+
+      noteSyncRef.current = {
+        timeout,
+        listId,
+        value,
+      };
+    },
+    [activeListId, enqueueFirebaseWrite]
+  );
+
+  const closeNotePad = useCallback(() => {
+    if (!isNotePadOpen) return;
+
+    flushPendingNote();
+    Keyboard.dismiss();
+    setIsNotePadOpen(false);
+  }, [flushPendingNote, isNotePadOpen]);
+
+  const toggleNotePad = useCallback(() => {
+    if (isNotePadOpen) {
+      closeNotePad();
+      return;
+    }
+
+    resetDrag();
+    setIsNotePadOpen(true);
+  }, [closeNotePad, isNotePadOpen, resetDrag]);
+
+  useEffect(
+    () => () => {
+      const pendingNote = noteSyncRef.current;
+
+      if (pendingNote.timeout) {
+        clearTimeout(pendingNote.timeout);
+      }
+
+      if (pendingNote.listId) {
+        enqueueFirebaseWriteRef.current?.(
+          `lists/${pendingNote.listId}/note`,
+          pendingNote.value
+        );
+      }
+    },
+    []
+  );
+
   const updateItemCategory = useCallback(
     (itemId, category) => {
       const user = auth.currentUser;
@@ -1195,6 +1312,7 @@ export default function App() {
         setCustomStores([]);
         setPeople([]);
         setActiveListId(DEFAULT_LIST_ID);
+        setIsNotePadOpen(false);
         setLoaded(true);
         return;
       }
@@ -1204,6 +1322,7 @@ export default function App() {
       setCustomStores([]);
       setPeople([]);
       setActiveListId(DEFAULT_LIST_ID);
+      setIsNotePadOpen(false);
       setLoaded(false);
 
       const loadUserData = async () => {
@@ -1905,6 +2024,7 @@ export default function App() {
       items: [],
       selectedStore,
       categoryAssignments: {},
+      note: "",
       createdAt: Date.now(),
     };
 
@@ -1926,6 +2046,7 @@ export default function App() {
   const selectList = (listId) => {
     if (listId === activeListId) return;
 
+    flushPendingNote();
     resetDrag();
     setActiveListId(listId);
     enqueueFirebaseWrite("activeListId", listId);
@@ -1952,6 +2073,7 @@ export default function App() {
           text: "Verwijderen",
           style: "destructive",
           onPress: () => {
+            flushPendingNote();
             const remainingLists = lists.filter(
               (currentList) =>
                 currentList.id !== list.id
@@ -2169,6 +2291,7 @@ export default function App() {
         person.id === categoryAssignments[section.title]
     );
     const personColors = getPersonColors(assignedPerson);
+    const isUnsortedSection = section.title === "Overig";
 
     return (
       <View
@@ -2187,29 +2310,55 @@ export default function App() {
         collapsable={false}
         style={[
           styles.sectionHeader,
+          isUnsortedSection && styles.unsortedSectionHeader,
           activeDropCategory === section.title &&
             styles.activeListCategoryHeader,
         ]}
       >
         <View style={styles.sectionTitleGroup}>
-          <View style={styles.sectionIcon}>
+          <View
+            style={[
+              styles.sectionIcon,
+              isUnsortedSection && styles.unsortedSectionIcon,
+            ]}
+          >
             <Ionicons
               name={categoryIcons[section.title] ?? "basket-outline"}
               size={15}
-              color={COLORS.primary}
+              color={
+                isUnsortedSection
+                  ? "#D96B0B"
+                  : COLORS.primary
+              }
             />
           </View>
 
-          <Text
-            style={[
-              styles.sectionTitle,
-              activeDropCategory === section.title &&
-                styles.activeListCategoryTitle,
-            ]}
-            numberOfLines={1}
-          >
-            {section.title}
-          </Text>
+          <View style={styles.sectionTitleCopy}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                isUnsortedSection &&
+                  styles.unsortedSectionTitle,
+                activeDropCategory === section.title &&
+                  styles.activeListCategoryTitle,
+              ]}
+              numberOfLines={1}
+            >
+              {section.title}
+            </Text>
+
+            {isUnsortedSection && (
+              <Text
+                style={[
+                  styles.unsortedSectionSubtitle,
+                  activeDropCategory === section.title &&
+                    styles.activeListCategoryTitle,
+                ]}
+              >
+                Nog te sorteren
+              </Text>
+            )}
+          </View>
         </View>
 
         <TouchableOpacity
@@ -2454,7 +2603,9 @@ export default function App() {
 
       <View style={styles.listHeading}>
         <Text style={styles.listTitle}>
-          {activeList.name}
+          {isNotePadOpen
+            ? `Notitieblok · ${activeList.name}`
+            : activeList.name}
         </Text>
       </View>
     </>
@@ -2486,28 +2637,101 @@ export default function App() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <View style={styles.container}>
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          renderSectionHeader={renderSectionHeader}
-          ListHeaderComponent={renderListHeader}
-          ListEmptyComponent={renderEmptyList}
-          stickySectionHeadersEnabled={false}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={!draggedItem}
-          removeClippedSubviews={false}
-          contentContainerStyle={[
-            styles.listContent,
-            sections.length === 0 && styles.emptyListContent,
-          ]}
-          SectionSeparatorComponent={() => <View style={styles.sectionSpacing} />}
-        />
+        {isNotePadOpen ? (
+          <ScrollView
+            style={styles.notePadScroll}
+            contentContainerStyle={[
+              styles.listContent,
+              styles.notePadContent,
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={
+              Platform.OS === "ios"
+                ? "interactive"
+                : "on-drag"
+            }
+            showsVerticalScrollIndicator={false}
+          >
+            {renderListHeader()}
 
-          {/* Profile button */}
+            <Pressable
+              style={styles.notePadDismissArea}
+              onPress={closeNotePad}
+              accessible={false}
+            >
+              <Pressable
+                style={styles.notePadCard}
+                onPress={(event) => event.stopPropagation()}
+              >
+                <TextInput
+                  style={styles.notePadInput}
+                  value={activeListNote}
+                  onChangeText={updateActiveListNote}
+                  onBlur={flushPendingNote}
+                  multiline
+                  autoFocus
+                  textAlignVertical="top"
+                  placeholder="Schrijf hier je notities..."
+                  placeholderTextColor="#9AA39D"
+                  maxLength={10000}
+                  accessibilityLabel={`Notities voor ${activeList.name}`}
+                />
+              </Pressable>
+            </Pressable>
+          </ScrollView>
+        ) : (
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            renderSectionHeader={renderSectionHeader}
+            ListHeaderComponent={renderListHeader}
+            ListEmptyComponent={renderEmptyList}
+            stickySectionHeadersEnabled={false}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={!draggedItem}
+            removeClippedSubviews={false}
+            contentContainerStyle={[
+              styles.listContent,
+              sections.length === 0 && styles.emptyListContent,
+            ]}
+            SectionSeparatorComponent={() => <View style={styles.sectionSpacing} />}
+          />
+        )}
+
+        <TouchableOpacity
+          style={[
+            styles.notePadIcon,
+            isNotePadOpen && styles.notePadIconActive,
+          ]}
+          onPress={toggleNotePad}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isNotePadOpen
+              ? "Terug naar de boodschappenlijst"
+              : "Notitieblok openen"
+          }
+          accessibilityState={{ selected: isNotePadOpen }}
+        >
+          <Ionicons
+            name="document-text-outline"
+            size={18}
+            color={
+              isNotePadOpen
+                ? "#FFFFFF"
+                : COLORS.primary
+            }
+          />
+        </TouchableOpacity>
+
+        {/* Profile button */}
         <TouchableOpacity
           style={styles.profileButton}
-          onPress={() => navigation.navigate("Profiel")}
+          onPress={() => {
+            flushPendingNote();
+            navigation.navigate("Profiel");
+          }}
           activeOpacity={0.85}
         >
           <Ionicons
@@ -2517,7 +2741,7 @@ export default function App() {
           />
         </TouchableOpacity>
 
-        {sections.length > 0 && (
+        {!isNotePadOpen && sections.length > 0 && (
           <TouchableOpacity
             style={styles.addButton}
             onPress={openItemModal}
