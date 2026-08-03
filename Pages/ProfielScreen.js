@@ -310,14 +310,14 @@ export default function ProfielScreen({ navigation }) {
     setSavingSharingKey(key);
 
     try {
-      if (key === "shareLocation" && enabled) {
+      if (key === "allowProductLocation" && enabled) {
         const permission =
           await Location.requestForegroundPermissionsAsync();
 
         if (permission.status !== "granted") {
           Alert.alert(
             "Locatie niet toegestaan",
-            "Locatie wordt niet gedeeld. Je kunt toestemming later opnieuw inschakelen via je profiel en de apparaatinstellingen."
+            "De locatieschakelaar blijft uit. SortIt gebruikt alleen je locatie terwijl de app geopend is en slaat niets op zonder toestemming."
           );
           return;
         }
@@ -629,13 +629,14 @@ export default function ProfielScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Data delen</Text>
+          <Text style={styles.sectionTitle}>Locatie</Text>
           <View style={styles.card}>
             <Text style={styles.cardText}>
-              Kies welke persoonlijke gegevens bij nieuwe productregels in
-              het Google Sheets-archief mogen worden opgeslagen. Je kunt dit
-              op ieder moment wijzigen. Uitschakelen stopt nieuwe delingen;
-              eerder opgeslagen archiefregels blijven bewaard.
+              Deze optie is vrijwillig en staat standaard uit. Als je hem
+              inschakelt, bewaart SortIt bij nieuwe productacties je huidige
+              coördinaten in je eigen Firebase-account. Er wordt geen
+              achtergrondlocatie gebruikt. Naam en e-mail worden niet bij
+              productacties opgeslagen.
             </Text>
 
             {DATA_SHARING_OPTIONS.map((option, index) => (

@@ -56,8 +56,7 @@ import {
 } from "../shoppingData";
 
 import { getCategory } from "../categoryService";
-import { appendToGoogleSheetsArchive } from "../googleSheetsArchive";
-import { getSheetSharingContext } from "../dataSharing";
+import { getAllowedProductLocation } from "../dataSharing";
 
 const DRAG_HOLD_MS = 500;
 const DEFAULT_LIST_ID = "default";
@@ -76,16 +75,6 @@ const createId = (prefix = "") =>
   `${prefix}${Date.now()}${Math.random()
     .toString(36)
     .slice(2, 8)}`;
-
-const toIsoString = (value) => {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime())
-    ? ""
-    : date.toISOString();
-};
 
 const createDefaultList = ({
   items = [],
@@ -112,14 +101,25 @@ const getStoreLogoSource = (store) =>
       }
     : store?.logo;
 
-const normalizeItems = (savedItems) => {
-  if (Array.isArray(savedItems)) {
-    return savedItems.filter((item) => item?.id);
-  }
+const normalizeItems = (savedItems, fallbackStore = "") => {
+  const items = Array.isArray(savedItems)
+    ? savedItems
+    : Object.values(savedItems ?? {});
 
-  return Object.values(savedItems ?? {}).filter(
-    (item) => item?.id
-  );
+  return items
+    .filter((item) => item?.id)
+    .map((item) => {
+      const { completedAt, ...normalizedItem } = item;
+
+      return {
+        ...normalizedItem,
+        completionTime:
+          item.completionTime ?? completedAt ?? "",
+        currentStore:
+          item.currentStore ?? fallbackStore,
+        location: item.location ?? "",
+      };
+    });
 };
 
 const normalizePeople = (savedPeople) =>
@@ -225,7 +225,10 @@ const normalizeShoppingLists = (data = {}) => {
     .map(([listId, list], index) => ({
       id: list.id ?? listId,
       name: list.name?.trim() || `Lijst ${index + 1}`,
-      items: normalizeItems(list.items),
+      items: normalizeItems(
+        list.items,
+        list.selectedStore ?? "Lidl"
+      ),
       selectedStore: availableStoreNames.has(
         list.selectedStore
       )
@@ -247,7 +250,10 @@ const normalizeShoppingLists = (data = {}) => {
       ? savedLists
       : [
           createDefaultList({
-            items: normalizeItems(data.items),
+            items: normalizeItems(
+              data.items,
+              data.selectedStore ?? "Lidl"
+            ),
             selectedStore: data.selectedStore,
           }),
         ];
@@ -304,7 +310,11 @@ const applyPendingOperations = (
   }
 
   operations
-    .filter((operation) => operation.userId === userId)
+    .filter(
+      (operation) =>
+        operation.userId === userId &&
+        operation.scope !== "productArchive"
+    )
     .forEach((operation) => {
       const pathParts = operation.path
         .split("/")
@@ -747,12 +757,6 @@ export default function App() {
       : networkState.type != null &&
         networkState.type !== Network.NetworkStateType.UNKNOWN;
 
-  const hasWifi =
-    networkState.isConnected === true &&
-    networkState.isInternetReachable !== false &&
-    (Platform.OS === "web" ||
-      networkState.type === Network.NetworkStateType.WIFI);
-
   const isOnline =
     networkStatusKnown &&
     networkState.isConnected === true &&
@@ -1033,53 +1037,13 @@ export default function App() {
 
         if (!operation) break;
 
-        // Eerst naar de append-only Google Sheet schrijven. Als dit niet lukt,
-        // sturen we ook niets naar Firebase: zo blijft deze actie in de
-        // bestaande synchronisatiewachtrij staan en gaat geen regel verloren.
-        const sheetArchiveRecords =
-          operation.sheetArchiveRecords ??
-          operation.localArchiveRecords;
-
-        if (sheetArchiveRecords?.length) {
-          // Vul gegevens aan voor acties die nog met een oudere appversie in
-          // de offline wachtrij stonden.
-          const sharingContext =
-            await getSheetSharingContext(user);
-          const normalizedSheetRecords =
-            sheetArchiveRecords.map((record) => ({
-              eventId: record.eventId,
-              userId: record.userId ?? operation.userId,
-              supermarkt:
-                record.supermarkt ?? "Onbekend",
-              product: record.product,
-              completed:
-                typeof record.completed === "boolean"
-                  ? record.completed
-                  : operation.path.endsWith("/completed")
-                  ? Boolean(operation.value)
-                  : typeof operation.value === "object" &&
-                    operation.value !== null
-                  ? Boolean(operation.value.completed)
-                  : false,
-              creationTime:
-                record.creationTime ??
-                toIsoString(operation.value?.createdAt),
-              completionTime:
-                record.completionTime ??
-                toIsoString(operation.value?.completedAt),
-              ...sharingContext,
-            }));
-
-          await appendToGoogleSheetsArchive(
-            normalizedSheetRecords
-          );
-        }
+        const databasePath =
+          operation.scope === "productArchive"
+            ? `users/${user.uid}/${operation.path}`
+            : `users/${user.uid}/shoppingList/${operation.path}`;
 
         await set(
-          ref(
-            db,
-            `users/${user.uid}/shoppingList/${operation.path}`
-          ),
+          ref(db, databasePath),
           operation.value
         );
 
@@ -1112,34 +1076,48 @@ export default function App() {
 
       const operationId = createId("sync-");
       const operationTime = Date.now();
-      const operation = {
+      const archiveOperations = (archiveDetails.items ?? [])
+        .filter((item) => item?.name)
+        .map((item, index) => {
+          const eventId = `event-${operationId}-${index}`;
+
+          return {
+            id: `archive-${operationId}-${index}`,
+            userId,
+            scope: "productArchive",
+            path: `productArchive/${eventId}`,
+            value: {
+              userId,
+              itemId: item.id ?? "",
+              listId: archiveDetails.listId ?? "",
+              action: archiveDetails.action ?? "updated",
+              name: item.name,
+              category: item.category ?? "Overig",
+              completed: Boolean(item.completed),
+              createdAt: item.createdAt ?? operationTime,
+              completionTime: item.completionTime ?? "",
+              currentStore:
+                item.currentStore ??
+                archiveDetails.currentStore ??
+                "",
+              location:
+                item.location ?? archiveDetails.location ?? "",
+              archivedAt: operationTime,
+            },
+          };
+        });
+      const shoppingListOperation = {
         id: operationId,
         userId,
+        scope: "shoppingList",
         path,
         value,
-        sheetArchiveRecords: (
-          archiveDetails.items ?? []
-        )
-          .filter((item) => item?.name)
-          .map((item, index) => ({
-            eventId: `data-${operationId}-${index}`,
-            userId,
-            supermarkt:
-              archiveDetails.supermarkt ?? "Onbekend",
-            product: item.name,
-            completed: Boolean(item.completed),
-            creationTime: toIsoString(item.createdAt),
-            completionTime: item.completed
-              ? toIsoString(
-                  item.completedAt ?? operationTime
-                )
-              : "",
-          })),
       };
 
       const nextOperations = [
         ...pendingOperationsRef.current,
-        operation,
+        ...archiveOperations,
+        shoppingListOperation,
       ];
 
       pendingOperationsRef.current = nextOperations;
@@ -1278,7 +1256,7 @@ export default function App() {
   );
 
   const updateItemCategory = useCallback(
-    (itemId, category) => {
+    async (itemId, category) => {
       const user = auth.currentUser;
       const item = items.find(
         (currentItem) => currentItem.id === itemId
@@ -1286,23 +1264,30 @@ export default function App() {
 
       if (!user || !item) return;
 
+      const location = await getAllowedProductLocation(user.uid);
+      const updatedItem = {
+        ...item,
+        category,
+        currentStore: selectedStore,
+        location,
+      };
+
       setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                category,
-              }
-            : item
+        currentItems.map((currentItem) =>
+          currentItem.id === itemId
+            ? updatedItem
+            : currentItem
         )
       );
 
       enqueueFirebaseWrite(
-        `lists/${activeListId}/items/${itemId}/category`,
-        category,
+        `lists/${activeListId}/items/${itemId}`,
+        updatedItem,
         {
-          supermarkt: selectedStore,
-          items: [{ ...item, category }],
+          listId: activeListId,
+          action: "category_changed",
+          currentStore: selectedStore,
+          items: [updatedItem],
         }
       );
     },
@@ -1646,18 +1631,20 @@ export default function App() {
         cleanedName,
         selectedStore,
         {
-          useApi: hasWifi,
           categories: routeCategories,
         }
       );
+      const location = await getAllowedProductLocation(user.uid);
 
       const item = {
         id: createId("item-"),
         name: cleanedName,
         category,
         completed: false,
-        completedAt: null,
+        completionTime: "",
         createdAt: Date.now(),
+        currentStore: selectedStore,
+        location,
       };
 
       setItems((currentItems) => [
@@ -1671,7 +1658,9 @@ export default function App() {
         `lists/${activeListId}/items/${item.id}`,
         item,
         {
-          supermarkt: selectedStore,
+          listId: activeListId,
+          action: "created",
+          currentStore: selectedStore,
           items: [item],
         }
       );
@@ -1697,11 +1686,14 @@ export default function App() {
     if (!user || !item) return;
 
     const completed = !item.completed;
-    const completedAt = completed ? Date.now() : null;
+    const completionTime = completed ? Date.now() : "";
+    const location = await getAllowedProductLocation(user.uid);
     const updatedItem = {
       ...item,
       completed,
-      completedAt,
+      completionTime,
+      currentStore: selectedStore,
+      location,
     };
 
     setItems((currentItems) =>
@@ -1718,7 +1710,9 @@ export default function App() {
       `lists/${activeListId}/items/${id}`,
       updatedItem,
       {
-        supermarkt: selectedStore,
+        listId: activeListId,
+        action: completed ? "completed" : "reopened",
+        currentStore: selectedStore,
         items: [updatedItem],
       }
     );
@@ -1738,8 +1732,10 @@ export default function App() {
       `lists/${activeListId}/items/${id}`,
       null,
       {
-        supermarkt: selectedStore,
-        items: [item],
+        listId: activeListId,
+        action: "deleted",
+        currentStore: selectedStore,
+        items: [{ ...item, currentStore: selectedStore }],
       }
     );
   };
@@ -2163,7 +2159,16 @@ export default function App() {
 
             enqueueFirebaseWrite(
               `lists/${list.id}`,
-              null
+              null,
+              {
+                listId: list.id,
+                action: "list_deleted",
+                currentStore: list.selectedStore,
+                items: (list.items ?? []).map((item) => ({
+                  ...item,
+                  currentStore: list.selectedStore,
+                })),
+              }
             );
 
             if (nextActiveListId !== activeListId) {
@@ -2232,8 +2237,10 @@ export default function App() {
                 `lists/${activeListId}/items/${item.id}`,
                 null,
                 {
-                  supermarkt: selectedStore,
-                  items: [item],
+                  listId: activeListId,
+                  action: "cleared_completed",
+                  currentStore: selectedStore,
+                  items: [{ ...item, currentStore: selectedStore }],
                 }
               );
             });
@@ -2269,8 +2276,13 @@ export default function App() {
               `lists/${activeListId}/items`,
               null,
               {
-                supermarkt: selectedStore,
-                items,
+                listId: activeListId,
+                action: "list_cleared",
+                currentStore: selectedStore,
+                items: items.map((item) => ({
+                  ...item,
+                  currentStore: selectedStore,
+                })),
               }
             );
           },

@@ -5,38 +5,24 @@ export const APP_LANGUAGE_KEY = "SORTIT_APP_LANGUAGE";
 export const DATA_SHARING_KEY = "SORTIT_DATA_SHARING";
 
 export const DEFAULT_DATA_SHARING = {
-  shareName: false,
-  shareEmail: false,
-  shareLocation: false,
+  allowProductLocation: false,
 };
 
 export const DATA_SHARING_OPTIONS = [
   {
-    key: "shareName",
-    icon: "person-outline",
-    title: "Naam toestaan",
-    description: "Voor meer personalisatie in SortIt.",
-  },
-  {
-    key: "shareEmail",
-    icon: "mail-outline",
-    title: "E-mail toestaan",
-    description:
-      "Om op de hoogte te blijven van nieuwe features.",
-  },
-  {
-    key: "shareLocation",
+    key: "allowProductLocation",
     icon: "location-outline",
-    title: "Locatie toestaan",
+    title: "Locatie bij product opslaan",
     description:
-      "Om het algoritme te verbeteren en je supermarktbezoeken nog beter te maken.",
+      "Sla je huidige coördinaten samen met nieuwe productacties op in je eigen Firebase-account. SortIt gebruikt geen achtergrondlocatie.",
   },
 ];
 
 export const normalizeDataSharing = (value = {}) => ({
-  shareName: value.shareName === true,
-  shareEmail: value.shareEmail === true,
-  shareLocation: value.shareLocation === true,
+  // De oudere toestemming voor supermarktdetectie wordt bewust niet
+  // overgenomen: coördinaten opslaan is een nieuw en specifieker doel.
+  allowProductLocation:
+    value.allowProductLocation === true,
 });
 
 const getUserDataSharingKey = (userId) =>
@@ -71,10 +57,14 @@ export const saveDataSharing = async (userId, value) => {
   return normalized;
 };
 
-const getAllowedLocation = async (shareLocation) => {
-  if (!shareLocation) return "";
+export const getAllowedProductLocation = async (userId) => {
+  if (!userId) return "";
 
   try {
+    const sharing = await loadDataSharing(userId);
+
+    if (!sharing.allowProductLocation) return "";
+
     const permission =
       await Location.getForegroundPermissionsAsync();
 
@@ -89,25 +79,15 @@ const getAllowedLocation = async (shareLocation) => {
         accuracy: Location.Accuracy.Balanced,
       }));
 
-    return `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+    return {
+      latitude: Number(position.coords.latitude.toFixed(6)),
+      longitude: Number(position.coords.longitude.toFixed(6)),
+    };
   } catch (error) {
-    console.warn("Locatie ophalen voor data-archief mislukt:", error);
+    console.warn(
+      "Locatie ophalen voor Firebase mislukt:",
+      error
+    );
     return "";
   }
-};
-
-export const getSheetSharingContext = async (user) => {
-  const [sharing, storedLanguage] = await Promise.all([
-    loadDataSharing(user.uid),
-    AsyncStorage.getItem(APP_LANGUAGE_KEY),
-  ]);
-
-  return {
-    name: sharing.shareName ? user.displayName ?? "" : "",
-    email: sharing.shareEmail ? user.email ?? "" : "",
-    location: await getAllowedLocation(
-      sharing.shareLocation
-    ),
-    language: storedLanguage ?? "nl",
-  };
 };

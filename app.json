@@ -24,7 +24,9 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen voor het Google Sheets-archief wanneer je Locatie toestaan in je profiel hebt ingeschakeld."
+          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen terwijl de app geopend is. Als je Locatie bij product opslaan inschakelt, worden je huidige coördinaten bij nieuwe productacties in je Firebase-account bewaard.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
         }
       ]
     ],
