@@ -59,6 +59,7 @@ import { getCategory } from "../categoryService";
 import { getAllowedProductLocation } from "../dataSharing";
 
 const DRAG_HOLD_MS = 500;
+const LOCATION_CAPTURE_IDLE_MS = 5000;
 const DEFAULT_LIST_ID = "default";
 const LOCAL_LISTS_KEY = "SHOPPING_LISTS_V2";
 const PENDING_SYNC_KEY = "SHOPPING_LISTS_PENDING_SYNC_V2";
@@ -615,6 +616,7 @@ export default function App() {
   const activeDropCategoryRef = useRef(null);
   const offlineWarningShownRef = useRef(false);
   const currentUserIdRef = useRef(null);
+  const listsRef = useRef(lists);
   const pendingOperationsRef = useRef([]);
   const pendingStorageWriteRef = useRef(
     Promise.resolve()
@@ -626,6 +628,9 @@ export default function App() {
   const enqueueFirebaseWriteRef = useRef(null);
   const flushPendingOperationsRef = useRef(null);
   const isOfflineRef = useRef(false);
+  const pendingLocationCapturesRef = useRef([]);
+  const locationCaptureTimeoutRef = useRef(null);
+  const locationCaptureSessionRef = useRef(0);
   const noteSyncRef = useRef({
     timeout: null,
     listId: null,
@@ -633,6 +638,8 @@ export default function App() {
   });
 
   const navigation = useNavigation();
+
+  listsRef.current = lists;
 
   useEffect(() => {
     let active = true;
@@ -1117,7 +1124,7 @@ export default function App() {
       const nextOperations = [
         ...pendingOperationsRef.current,
         ...archiveOperations,
-        shoppingListOperation,
+        ...(path ? [shoppingListOperation] : []),
       ];
 
       pendingOperationsRef.current = nextOperations;
@@ -1145,6 +1152,132 @@ export default function App() {
       isOnline,
       persistPendingOperations,
     ]
+  );
+
+  const scheduleCompletedItemLocation = useCallback(
+    (capture) => {
+      pendingLocationCapturesRef.current = [
+        ...pendingLocationCapturesRef.current.filter(
+          (pendingCapture) =>
+            pendingCapture.userId === capture.userId
+        ),
+        capture,
+      ];
+
+      if (locationCaptureTimeoutRef.current) {
+        clearTimeout(locationCaptureTimeoutRef.current);
+      }
+
+      const sessionId = locationCaptureSessionRef.current;
+
+      locationCaptureTimeoutRef.current = setTimeout(
+        async () => {
+          locationCaptureTimeoutRef.current = null;
+
+          const captures =
+            pendingLocationCapturesRef.current.filter(
+              (pendingCapture) =>
+                pendingCapture.userId === capture.userId
+            );
+
+          pendingLocationCapturesRef.current =
+            pendingLocationCapturesRef.current.filter(
+              (pendingCapture) =>
+                pendingCapture.userId !== capture.userId
+            );
+
+          if (
+            captures.length === 0 ||
+            auth.currentUser?.uid !== capture.userId
+          ) {
+            return;
+          }
+
+          const location = await getAllowedProductLocation(
+            capture.userId
+          );
+
+          if (
+            !location ||
+            sessionId !== locationCaptureSessionRef.current ||
+            auth.currentUser?.uid !== capture.userId
+          ) {
+            return;
+          }
+
+          const currentItemCaptures = new Map();
+
+          captures.forEach((pendingCapture) => {
+            const currentList = listsRef.current.find(
+              (list) => list.id === pendingCapture.listId
+            );
+            const currentItem = currentList?.items.find(
+              (item) => item.id === pendingCapture.itemId
+            );
+
+            if (
+              currentItem?.completed &&
+              currentItem.completionTime ===
+                pendingCapture.completionTime
+            ) {
+              currentItemCaptures.set(
+                `${pendingCapture.listId}:${pendingCapture.itemId}`,
+                pendingCapture
+              );
+            }
+          });
+
+          if (currentItemCaptures.size > 0) {
+            setLists((currentLists) =>
+              currentLists.map((list) => ({
+                ...list,
+                items: list.items.map((item) => {
+                  const matchingCapture =
+                    currentItemCaptures.get(
+                      `${list.id}:${item.id}`
+                    );
+
+                  return matchingCapture &&
+                    item.completed &&
+                    item.completionTime ===
+                      matchingCapture.completionTime
+                    ? { ...item, location }
+                    : item;
+                }),
+              }))
+            );
+          }
+
+          captures.forEach((pendingCapture) => {
+            const captureKey =
+              `${pendingCapture.listId}:${pendingCapture.itemId}`;
+            const isCurrentCompletion =
+              currentItemCaptures.get(captureKey) ===
+              pendingCapture;
+            const itemWithLocation = {
+              ...pendingCapture.item,
+              location,
+            };
+
+            enqueueFirebaseWrite(
+              isCurrentCompletion
+                ? `lists/${pendingCapture.listId}/items/${pendingCapture.itemId}/location`
+                : null,
+              isCurrentCompletion ? location : null,
+              {
+                listId: pendingCapture.listId,
+                action: "completion_location_captured",
+                currentStore:
+                  pendingCapture.item.currentStore ?? "",
+                items: [itemWithLocation],
+              }
+            );
+          });
+        },
+        LOCATION_CAPTURE_IDLE_MS
+      );
+    },
+    [enqueueFirebaseWrite]
   );
 
   enqueueFirebaseWriteRef.current =
@@ -1251,6 +1384,13 @@ export default function App() {
           pendingNote.value
         );
       }
+
+      if (locationCaptureTimeoutRef.current) {
+        clearTimeout(locationCaptureTimeoutRef.current);
+      }
+
+      pendingLocationCapturesRef.current = [];
+      locationCaptureSessionRef.current += 1;
     },
     []
   );
@@ -1679,7 +1819,7 @@ export default function App() {
     }
   };
 
-  const toggleItem = async (id) => {
+  const toggleItem = (id) => {
     const user = auth.currentUser;
     const item = items.find((currentItem) => currentItem.id === id);
 
@@ -1687,13 +1827,12 @@ export default function App() {
 
     const completed = !item.completed;
     const completionTime = completed ? Date.now() : "";
-    const location = await getAllowedProductLocation(user.uid);
     const updatedItem = {
       ...item,
       completed,
       completionTime,
       currentStore: selectedStore,
-      location,
+      location: completed ? "" : item.location ?? "",
     };
 
     setItems((currentItems) =>
@@ -1716,6 +1855,16 @@ export default function App() {
         items: [updatedItem],
       }
     );
+
+    if (completed) {
+      scheduleCompletedItemLocation({
+        userId: user.uid,
+        listId: activeListId,
+        itemId: id,
+        completionTime,
+        item: updatedItem,
+      });
+    }
   };
 
   const removeItem = (id) => {

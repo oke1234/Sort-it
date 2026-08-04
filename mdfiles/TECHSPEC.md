@@ -141,6 +141,7 @@ Mogelijke acties:
 - `cleared_completed`
 - `list_cleared`
 - `list_deleted`
+- `completion_location_captured`
 
 Een actie krijgt altijd een nieuw `eventId`. De app werkt bestaande archiefrecords niet bij en verwijdert ze niet.
 
@@ -182,10 +183,12 @@ De profielschakelaar `allowProductLocation` staat standaard uit en wordt per geb
 Wanneer de gebruiker de schakelaar aanzet:
 
 1. vraagt de app toestemming voor locatie tijdens appgebruik;
-2. gebruikt de app bij een nieuwe productactie eerst een recente laatst bekende locatie;
-3. vraagt de app anders een nieuwe gebalanceerde locatie op;
-4. rondt de coördinaten af op zes decimalen;
-5. slaat de coördinaten in het actuele product en het nieuwe archiefrecord op.
+2. verwerkt de app een afgevinkt product en de gewone Firebase-sync direct, zonder op locatie te wachten;
+3. wacht de app na het laatste vinkje vijf seconden op een rustig moment;
+4. gebruikt de app dan eerst een recente laatst bekende locatie;
+5. vraagt de app anders een nieuwe gebalanceerde locatie op;
+6. rondt de coördinaten af op zes decimalen;
+7. werkt de app het actuele product bij als dezelfde afronding nog actueel is en schrijft altijd een nieuw append-only `completion_location_captured`-event voor de gevonden locatie.
 
 Er is geen achtergrondlocatie. Bij ontbrekende toestemming, een fout of een uitgeschakelde voorkeur wordt `location` leeg opgeslagen.
 
@@ -228,6 +231,7 @@ De regel voor `productArchive` staat alleen een nieuwe, niet-lege waarde toe op 
 - `currentStore` komt overeen met de op dat moment gekozen winkel.
 - Zonder locatie-opt-in is `location` leeg.
 - Met toestemming bevat `location` latitude en longitude.
+- Afvinken en de gewone Firebase-write wachten niet op het ophalen van locatie.
 - Na offline gebruik worden alle operaties na netwerkherstel in volgorde verstuurd.
 - Een bestaand archiefrecord kan via de clientregels niet worden gewijzigd of verwijderd.
 
