@@ -20,6 +20,97 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
+  storePresencePrompt: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 222,
+    zIndex: 50,
+    elevation: 12,
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 11,
+    borderWidth: 1,
+    borderColor: "#BFDCC8",
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+    shadowColor: COLORS.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 7,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+
+  storePresencePromptIcon: {
+    width: 36,
+    height: 36,
+    marginRight: 9,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  storePresencePromptCopy: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+  },
+
+  storePresencePromptTitle: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  storePresencePromptText: {
+    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: "600",
+    color: COLORS.textSoft,
+  },
+
+  storePresencePromptActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  storePresenceNoButton: {
+    minWidth: 38,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: "#F0F3F1",
+  },
+
+  storePresenceNoText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textSoft,
+  },
+
+  storePresenceYesButton: {
+    minWidth: 38,
+    height: 34,
+    marginLeft: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: COLORS.primary,
+  },
+
+  storePresenceYesText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+
   profileButton: {
     position: "absolute",
     right: 24,

@@ -24,7 +24,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen terwijl de app geopend is. Als je Locatie bij product opslaan inschakelt, worden je huidige coördinaten bij nieuwe productacties in je Firebase-account bewaard.",
+          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen terwijl de app geopend is om te vragen of je bij de gekozen winkel bent en het adres te bepalen. Alleen een bevestigd adres kan naar Firebase; coördinaten blijven op je telefoon.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
         }

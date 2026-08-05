@@ -33,6 +33,7 @@ import {
   loadDataSharing,
   saveDataSharing,
 } from "../dataSharing";
+import { clearStorePresenceData } from "../storePresence";
 import {
   countries,
   DEFAULT_COUNTRY_CODE,
@@ -310,14 +311,14 @@ export default function ProfielScreen({ navigation }) {
     setSavingSharingKey(key);
 
     try {
-      if (key === "allowProductLocation" && enabled) {
+      if (key === "allowStorePresence" && enabled) {
         const permission =
           await Location.requestForegroundPermissionsAsync();
 
         if (permission.status !== "granted") {
           Alert.alert(
             "Locatie niet toegestaan",
-            "De locatieschakelaar blijft uit. SortIt gebruikt alleen je locatie terwijl de app geopend is en slaat niets op zonder toestemming."
+            "De winkelschakelaar blijft uit. SortIt gebruikt locatie alleen terwijl de app geopend is en stuurt geen coördinaten naar Firebase."
           );
           return;
         }
@@ -332,6 +333,10 @@ export default function ProfielScreen({ navigation }) {
       );
 
       setDataSharing(nextSharing);
+
+      if (key === "allowStorePresence" && !enabled) {
+        await clearStorePresenceData(user.uid);
+      }
     } catch (error) {
       console.error("Datatoestemming opslaan mislukt:", error);
       Alert.alert(
@@ -629,14 +634,14 @@ export default function ProfielScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Locatie</Text>
+          <Text style={styles.sectionTitle}>Winkelbezoek</Text>
           <View style={styles.card}>
             <Text style={styles.cardText}>
               Deze optie is vrijwillig en staat standaard uit. Als je hem
-              inschakelt, bewaart SortIt bij nieuwe productacties je huidige
-              coördinaten in je eigen Firebase-account. Er wordt geen
-              achtergrondlocatie gebruikt. Naam en e-mail worden niet bij
-              productacties opgeslagen.
+              inschakelt, kan SortIt vragen of je bij de gekozen winkel
+              bent. Coördinaten blijven op je telefoon; Firebase ontvangt
+              alleen de winkelnaam, een bevestigd adres, je antwoord en het
+              tijdstip. Er wordt geen achtergrondlocatie gebruikt.
             </Text>
 
             {DATA_SHARING_OPTIONS.map((option, index) => (

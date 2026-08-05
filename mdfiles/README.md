@@ -11,7 +11,7 @@ SortIt is een mobiele boodschappenlijst-app die producten ordent volgens de loop
 - Offline wijzigingen die bij de volgende verbinding met Firebase synchroniseren.
 - Actuele lijsten in Firebase Realtime Database.
 - Een blijvend productarchief per gebruiker in Firebase.
-- Optionele voorgrondlocatie bij nieuwe productacties.
+- Optionele lokale winkelherkenning met een niet-blokkerende bevestigingsvraag.
 
 ## Firebase-opslag
 
@@ -25,6 +25,12 @@ Elke productactie krijgt daarnaast eerst een eigen record onder:
 
 ```text
 users/{uid}/productArchive/{eventId}
+```
+
+Antwoorden op de winkelvraag staan zonder coördinaten onder:
+
+```text
+users/{uid}/storeConfirmations/{confirmationId}
 ```
 
 Een archiefrecord bevat onder andere:
@@ -41,12 +47,11 @@ Een archiefrecord bevat onder andere:
   "createdAt": 1785751200000,
   "completionTime": "",
   "currentStore": "Lidl",
-  "location": "",
   "archivedAt": 1785751200000
 }
 ```
 
-Als de gebruiker locatieopslag in het profiel toestaat, is `location` een object met `latitude` en `longitude`. De app vraagt alleen voorgrondlocatie op. Als toestemming uitstaat of niet beschikbaar is, blijft `location` leeg.
+Als de gebruiker winkelherkenning toestaat, gebruikt de app voorgrondlocatie uitsluitend lokaal om een straal van 150 meter te herkennen en een leesbaar adres te bepalen. Firebase ontvangt de gekozen winkelnaam, alleen na **Ja** het gevonden winkeladres, het antwoord en het antwoordtijdstip. Coördinaten worden niet verstuurd.
 
 De app verwijdert geen records uit `productArchive`. Het verwijderen van een zichtbaar product of een zichtbare lijst maakt juist eerst een nieuw archiefrecord en verwijdert daarna alleen het actuele lijstrecord.
 
@@ -71,6 +76,11 @@ Voorbeeldregels:
         },
         "productArchive": {
           "$eventId": {
+            ".write": "$uid === auth.uid && !data.exists() && newData.exists()"
+          }
+        },
+        "storeConfirmations": {
+          "$confirmationId": {
             ".write": "$uid === auth.uid && !data.exists() && newData.exists()"
           }
         }
@@ -104,13 +114,14 @@ App.js                 Navigatie en inlogstatus
 Pages/HomeScreen.js    Lijsten, Firebase-sync en productarchief
 Pages/LoginScreen.js   Inloggen en wachtwoordherstel
 Pages/CreateAccount.js Account aanmaken
-Pages/ProfielScreen.js Profiel, land en locatietoestemming
+Pages/ProfielScreen.js Profiel, land en toestemming voor winkelherkenning
 categoryService.js     Lokale productcategorisatie
-dataSharing.js         Lokale locatievoorkeur en voorgrondlocatie
+dataSharing.js         Lokale toestemming voor winkelherkenning
+storePresence.js       Lokale 150-metercontrole en antwoordcache
 shoppingData.js        Landen, supermarkten en categorievolgordes
 firebaseConfig.js      Firebase-configuratie
 ```
 
 ## Privacy
 
-Productnamen, categorieën, statussen, tijden, winkelkeuze en eventueel toegestane coördinaten worden alleen binnen het Firebase-account van de ingelogde gebruiker opgeslagen. Productcategorisatie gebeurt lokaal. Zie [privacy-policy.md](privacy-policy.md) voor details.
+Productnamen, categorieën, statussen, tijden, winkelkeuze en winkelbevestigingen worden binnen het Firebase-account van de ingelogde gebruiker opgeslagen. GPS-coördinaten voor de 150-metercontrole blijven lokaal op het apparaat. Productcategorisatie gebeurt lokaal. Zie [privacy-policy.md](privacy-policy.md) voor details.

@@ -14,17 +14,17 @@ Voor productacties kunnen de volgende gegevens in het Firebase-account worden op
 - afrondstatus;
 - aanmaakmoment, afrondmoment en archiefmoment;
 - de op dat moment gekozen supermarkt;
-- locatiecoördinaten, maar alleen als de gebruiker dit afzonderlijk toestaat.
+- antwoorden op de optionele vraag of de gebruiker bij de geselecteerde winkel is.
 
 Productacties worden als historie bewaard, ook wanneer het zichtbare product of de zichtbare lijst later wordt verwijderd. Dit voorkomt dat normale apphandelingen de historie wissen.
 
-## Optionele locatie
+## Optionele winkelherkenning
 
-De instelling **Locatie bij product opslaan** staat standaard uit. Bij inschakelen vraagt SortIt toestemming voor locatiegebruik terwijl de app geopend is. SortIt gebruikt geen achtergrondlocatie.
+De instelling **Winkelbezoek herkennen** staat standaard uit. Bij inschakelen vraagt SortIt toestemming voor locatiegebruik terwijl de app geopend is. SortIt gebruikt geen achtergrondlocatie.
 
-Na toestemming kan de huidige breedte- en lengtegraad bij nieuwe productacties in Firebase worden opgeslagen. Als de instelling uitstaat, toestemming ontbreekt of geen locatie beschikbaar is, wordt een lege locatiewaarde opgeslagen.
+Na een productactie kan SortIt locatie lokaal gebruiken om te bepalen of binnen 150 meter en één uur al antwoord is gegeven en om een leesbaar adres te bepalen. Daarna kan de app vragen of de gebruiker bij de geselecteerde winkel is. De GPS-coördinaten blijven op het apparaat en worden niet naar Firebase gestuurd. Na **Ja** kan Firebase de gekozen winkelnaam en het gevonden adres ontvangen. Daarnaast ontvangt Firebase het antwoord, het antwoordtijdstip en de gebruikte straal. Bij **Nee** wordt geen adres als winkeladres opgeslagen.
 
-Het uitschakelen van de instelling stopt nieuwe locatieopvragingen. Eerder met toestemming opgeslagen archiefgegevens worden daardoor niet automatisch verwijderd.
+Het uitschakelen van de instelling stopt nieuwe locatieopvragingen en verwijdert de lokale antwoordposities. Coördinaten die door een oudere appversie al in Firebase zijn opgeslagen, worden hierdoor niet automatisch verwijderd.
 
 ## Productcategorisatie
 
@@ -36,6 +36,6 @@ Firebase-beveiligingsregels moeten ervoor zorgen dat een ingelogde gebruiker all
 
 ## Keuzes en verwijderverzoeken
 
-De locatiekeuze kan op ieder moment in het profiel worden gewijzigd. Een wettelijk verzoek om accountgegevens te bekijken of te verwijderen staat los van de normale appfunctie die historie bewaart en moet via de verantwoordelijke voor SortIt worden afgehandeld.
+De keuze voor winkelherkenning kan op ieder moment in het profiel worden gewijzigd. Een wettelijk verzoek om accountgegevens te bekijken of te verwijderen staat los van de normale appfunctie die historie bewaart en moet via de verantwoordelijke voor SortIt worden afgehandeld.
 
 Dit beleid moet vóór publicatie worden aangevuld met de identiteit en contactgegevens van de verantwoordelijke, de ingangsdatum, de bewaartermijnen en een openbare contactmogelijkheid voor privacy- en verwijderverzoeken.

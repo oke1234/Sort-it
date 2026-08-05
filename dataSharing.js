@@ -1,28 +1,26 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
 
 export const APP_LANGUAGE_KEY = "SORTIT_APP_LANGUAGE";
 export const DATA_SHARING_KEY = "SORTIT_DATA_SHARING";
 
 export const DEFAULT_DATA_SHARING = {
-  allowProductLocation: false,
+  allowStorePresence: false,
 };
 
 export const DATA_SHARING_OPTIONS = [
   {
-    key: "allowProductLocation",
+    key: "allowStorePresence",
     icon: "location-outline",
-    title: "Locatie bij product opslaan",
+    title: "Winkelbezoek herkennen",
     description:
-      "Sla je huidige coördinaten samen met nieuwe productacties op in je eigen Firebase-account. SortIt gebruikt geen achtergrondlocatie.",
+      "Laat SortIt na een productactie vragen of je bij de gekozen winkel bent. Alleen een bevestigd winkeladres gaat naar Firebase; coördinaten blijven op je telefoon.",
   },
 ];
 
 export const normalizeDataSharing = (value = {}) => ({
-  // De oudere toestemming voor supermarktdetectie wordt bewust niet
-  // overgenomen: coördinaten opslaan is een nieuw en specifieker doel.
-  allowProductLocation:
-    value.allowProductLocation === true,
+  // De eerdere toestemming om coördinaten in Firebase op te slaan
+  // wordt niet hergebruikt voor deze nieuwe winkelbevestiging.
+  allowStorePresence: value.allowStorePresence === true,
 });
 
 const getUserDataSharingKey = (userId) =>
@@ -55,39 +53,4 @@ export const saveDataSharing = async (userId, value) => {
   );
 
   return normalized;
-};
-
-export const getAllowedProductLocation = async (userId) => {
-  if (!userId) return "";
-
-  try {
-    const sharing = await loadDataSharing(userId);
-
-    if (!sharing.allowProductLocation) return "";
-
-    const permission =
-      await Location.getForegroundPermissionsAsync();
-
-    if (permission.status !== "granted") return "";
-
-    const position =
-      (await Location.getLastKnownPositionAsync({
-        maxAge: 300000,
-        requiredAccuracy: 1000,
-      })) ??
-      (await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      }));
-
-    return {
-      latitude: Number(position.coords.latitude.toFixed(6)),
-      longitude: Number(position.coords.longitude.toFixed(6)),
-    };
-  } catch (error) {
-    console.warn(
-      "Locatie ophalen voor Firebase mislukt:",
-      error
-    );
-    return "";
-  }
 };

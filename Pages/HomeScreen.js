@@ -56,10 +56,14 @@ import {
 } from "../shoppingData";
 
 import { getCategory } from "../categoryService";
-import { getAllowedProductLocation } from "../dataSharing";
+import {
+  getStorePresenceCandidate,
+  saveStorePresenceResponse,
+  STORE_PRESENCE_IDLE_MS,
+  STORE_PRESENCE_RADIUS_METERS,
+} from "../storePresence";
 
 const DRAG_HOLD_MS = 500;
-const LOCATION_CAPTURE_IDLE_MS = 5000;
 const DEFAULT_LIST_ID = "default";
 const LOCAL_LISTS_KEY = "SHOPPING_LISTS_V2";
 const PENDING_SYNC_KEY = "SHOPPING_LISTS_PENDING_SYNC_V2";
@@ -102,6 +106,25 @@ const getStoreLogoSource = (store) =>
       }
     : store?.logo;
 
+const stripLocationData = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(stripLocationData);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "location")
+      .map(([key, nestedValue]) => [
+        key,
+        stripLocationData(nestedValue),
+      ])
+  );
+};
+
 const normalizeItems = (savedItems, fallbackStore = "") => {
   const items = Array.isArray(savedItems)
     ? savedItems
@@ -110,7 +133,8 @@ const normalizeItems = (savedItems, fallbackStore = "") => {
   return items
     .filter((item) => item?.id)
     .map((item) => {
-      const { completedAt, ...normalizedItem } = item;
+      const { completedAt, ...normalizedItem } =
+        stripLocationData(item);
 
       return {
         ...normalizedItem,
@@ -118,7 +142,6 @@ const normalizeItems = (savedItems, fallbackStore = "") => {
           item.completionTime ?? completedAt ?? "",
         currentStore:
           item.currentStore ?? fallbackStore,
-        location: item.location ?? "",
       };
     });
 };
@@ -314,7 +337,7 @@ const applyPendingOperations = (
     .filter(
       (operation) =>
         operation.userId === userId &&
-        operation.scope !== "productArchive"
+        operation.scope === "shoppingList"
     )
     .forEach((operation) => {
       const pathParts = operation.path
@@ -596,6 +619,8 @@ export default function App() {
   const [countryCode, setCountryCode] = useState(
     DEFAULT_COUNTRY_CODE
   );
+  const [storePresencePrompt, setStorePresencePrompt] =
+    useState(null);
 
   const dragPosition = useRef(
     new Animated.ValueXY()
@@ -616,7 +641,6 @@ export default function App() {
   const activeDropCategoryRef = useRef(null);
   const offlineWarningShownRef = useRef(false);
   const currentUserIdRef = useRef(null);
-  const listsRef = useRef(lists);
   const pendingOperationsRef = useRef([]);
   const pendingStorageWriteRef = useRef(
     Promise.resolve()
@@ -628,9 +652,8 @@ export default function App() {
   const enqueueFirebaseWriteRef = useRef(null);
   const flushPendingOperationsRef = useRef(null);
   const isOfflineRef = useRef(false);
-  const pendingLocationCapturesRef = useRef([]);
-  const locationCaptureTimeoutRef = useRef(null);
-  const locationCaptureSessionRef = useRef(0);
+  const storePresenceTimeoutRef = useRef(null);
+  const storePresenceSessionRef = useRef(0);
   const noteSyncRef = useRef({
     timeout: null,
     listId: null,
@@ -638,8 +661,6 @@ export default function App() {
   });
 
   const navigation = useNavigation();
-
-  listsRef.current = lists;
 
   useEffect(() => {
     let active = true;
@@ -1036,18 +1057,24 @@ export default function App() {
 
     try {
       while (auth.currentUser?.uid === user.uid) {
-        const operation =
-          pendingOperationsRef.current.find(
+        const userOperations =
+          pendingOperationsRef.current.filter(
             (pendingOperation) =>
               pendingOperation.userId === user.uid
           );
+        const operation =
+          userOperations.find(
+            (pendingOperation) =>
+              pendingOperation.scope !==
+              "storeConfirmation"
+          ) ?? userOperations[0];
 
         if (!operation) break;
 
         const databasePath =
-          operation.scope === "productArchive"
-            ? `users/${user.uid}/${operation.path}`
-            : `users/${user.uid}/shoppingList/${operation.path}`;
+          operation.scope === "shoppingList"
+            ? `users/${user.uid}/shoppingList/${operation.path}`
+            : `users/${user.uid}/${operation.path}`;
 
         await set(
           ref(db, databasePath),
@@ -1074,7 +1101,12 @@ export default function App() {
   }, [isOnline, persistPendingOperations]);
 
   const enqueueFirebaseWrite = useCallback(
-    (path, value, archiveDetails = {}) => {
+    (
+      path,
+      value,
+      archiveDetails = {},
+      scope = "shoppingList"
+    ) => {
       const userId =
         currentUserIdRef.current ??
         auth.currentUser?.uid;
@@ -1107,8 +1139,6 @@ export default function App() {
                 item.currentStore ??
                 archiveDetails.currentStore ??
                 "",
-              location:
-                item.location ?? archiveDetails.location ?? "",
               archivedAt: operationTime,
             },
           };
@@ -1116,15 +1146,15 @@ export default function App() {
       const shoppingListOperation = {
         id: operationId,
         userId,
-        scope: "shoppingList",
+        scope,
         path,
-        value,
+        value: stripLocationData(value),
       };
 
       const nextOperations = [
         ...pendingOperationsRef.current,
         ...archiveOperations,
-        ...(path ? [shoppingListOperation] : []),
+        shoppingListOperation,
       ];
 
       pendingOperationsRef.current = nextOperations;
@@ -1154,130 +1184,103 @@ export default function App() {
     ]
   );
 
-  const scheduleCompletedItemLocation = useCallback(
-    (capture) => {
-      pendingLocationCapturesRef.current = [
-        ...pendingLocationCapturesRef.current.filter(
-          (pendingCapture) =>
-            pendingCapture.userId === capture.userId
-        ),
-        capture,
-      ];
+  const scheduleStorePresenceCheck = useCallback(
+    (userId, storeName) => {
+      if (!userId || !storeName) return;
 
-      if (locationCaptureTimeoutRef.current) {
-        clearTimeout(locationCaptureTimeoutRef.current);
+      if (storePresenceTimeoutRef.current) {
+        clearTimeout(storePresenceTimeoutRef.current);
       }
 
-      const sessionId = locationCaptureSessionRef.current;
+      const sessionId =
+        storePresenceSessionRef.current + 1;
+      storePresenceSessionRef.current = sessionId;
 
-      locationCaptureTimeoutRef.current = setTimeout(
+      storePresenceTimeoutRef.current = setTimeout(
         async () => {
-          locationCaptureTimeoutRef.current = null;
+          storePresenceTimeoutRef.current = null;
 
-          const captures =
-            pendingLocationCapturesRef.current.filter(
-              (pendingCapture) =>
-                pendingCapture.userId === capture.userId
-            );
-
-          pendingLocationCapturesRef.current =
-            pendingLocationCapturesRef.current.filter(
-              (pendingCapture) =>
-                pendingCapture.userId !== capture.userId
+          const candidate =
+            await getStorePresenceCandidate(
+              userId,
+              storeName
             );
 
           if (
-            captures.length === 0 ||
-            auth.currentUser?.uid !== capture.userId
+            !candidate ||
+            sessionId !== storePresenceSessionRef.current ||
+            auth.currentUser?.uid !== userId
           ) {
             return;
           }
 
-          const location = await getAllowedProductLocation(
-            capture.userId
-          );
-
-          if (
-            !location ||
-            sessionId !== locationCaptureSessionRef.current ||
-            auth.currentUser?.uid !== capture.userId
-          ) {
-            return;
-          }
-
-          const currentItemCaptures = new Map();
-
-          captures.forEach((pendingCapture) => {
-            const currentList = listsRef.current.find(
-              (list) => list.id === pendingCapture.listId
-            );
-            const currentItem = currentList?.items.find(
-              (item) => item.id === pendingCapture.itemId
-            );
-
-            if (
-              currentItem?.completed &&
-              currentItem.completionTime ===
-                pendingCapture.completionTime
-            ) {
-              currentItemCaptures.set(
-                `${pendingCapture.listId}:${pendingCapture.itemId}`,
-                pendingCapture
-              );
-            }
-          });
-
-          if (currentItemCaptures.size > 0) {
-            setLists((currentLists) =>
-              currentLists.map((list) => ({
-                ...list,
-                items: list.items.map((item) => {
-                  const matchingCapture =
-                    currentItemCaptures.get(
-                      `${list.id}:${item.id}`
-                    );
-
-                  return matchingCapture &&
-                    item.completed &&
-                    item.completionTime ===
-                      matchingCapture.completionTime
-                    ? { ...item, location }
-                    : item;
-                }),
-              }))
-            );
-          }
-
-          captures.forEach((pendingCapture) => {
-            const captureKey =
-              `${pendingCapture.listId}:${pendingCapture.itemId}`;
-            const isCurrentCompletion =
-              currentItemCaptures.get(captureKey) ===
-              pendingCapture;
-            const itemWithLocation = {
-              ...pendingCapture.item,
-              location,
-            };
-
-            enqueueFirebaseWrite(
-              isCurrentCompletion
-                ? `lists/${pendingCapture.listId}/items/${pendingCapture.itemId}/location`
-                : null,
-              isCurrentCompletion ? location : null,
-              {
-                listId: pendingCapture.listId,
-                action: "completion_location_captured",
-                currentStore:
-                  pendingCapture.item.currentStore ?? "",
-                items: [itemWithLocation],
-              }
-            );
+          setStorePresencePrompt({
+            ...candidate,
+            userId,
           });
         },
-        LOCATION_CAPTURE_IDLE_MS
+        STORE_PRESENCE_IDLE_MS
       );
     },
-    [enqueueFirebaseWrite]
+    []
+  );
+
+  const handleStorePresenceResponse = useCallback(
+    (confirmed) => {
+      const prompt = storePresencePrompt;
+
+      if (
+        !prompt ||
+        auth.currentUser?.uid !== prompt.userId
+      ) {
+        setStorePresencePrompt(null);
+        return;
+      }
+
+      const answeredAt = Date.now();
+      const confirmationId = createId(
+        "store-confirmation-"
+      );
+
+      console.log("Winkellocatie bevestigd:", {
+        latitude: prompt.latitude,
+        longitude: prompt.longitude,
+        address: prompt.address,
+        confirmationTime: new Date(answeredAt).toISOString(),
+      });
+
+      setStorePresencePrompt(null);
+
+      saveStorePresenceResponse(
+        prompt.userId,
+        prompt,
+        confirmed,
+        answeredAt
+      ).catch((error) => {
+        console.warn(
+          "Winkelantwoord lokaal opslaan mislukt:",
+          error
+        );
+      });
+
+      enqueueFirebaseWrite(
+        `storeConfirmations/${confirmationId}`,
+        {
+          userId: prompt.userId,
+          confirmationId,
+          storeName: prompt.storeName,
+          storeAddress:
+            confirmed === true ? prompt.address ?? "" : "",
+          confirmed: confirmed === true,
+          answeredAt,
+          confirmationTime: new Date(answeredAt).toISOString(),
+          radiusMeters: STORE_PRESENCE_RADIUS_METERS,
+        },
+        {},
+        "storeConfirmation"
+      );
+    },
+    [enqueueFirebaseWrite, storePresencePrompt]
   );
 
   enqueueFirebaseWriteRef.current =
@@ -1385,18 +1388,28 @@ export default function App() {
         );
       }
 
-      if (locationCaptureTimeoutRef.current) {
-        clearTimeout(locationCaptureTimeoutRef.current);
+      if (storePresenceTimeoutRef.current) {
+        clearTimeout(storePresenceTimeoutRef.current);
       }
 
-      pendingLocationCapturesRef.current = [];
-      locationCaptureSessionRef.current += 1;
+      storePresenceSessionRef.current += 1;
     },
     []
   );
 
+  useEffect(() => {
+    setStorePresencePrompt(null);
+
+    if (storePresenceTimeoutRef.current) {
+      clearTimeout(storePresenceTimeoutRef.current);
+      storePresenceTimeoutRef.current = null;
+    }
+
+    storePresenceSessionRef.current += 1;
+  }, [activeListId, selectedStore]);
+
   const updateItemCategory = useCallback(
-    async (itemId, category) => {
+    (itemId, category) => {
       const user = auth.currentUser;
       const item = items.find(
         (currentItem) => currentItem.id === itemId
@@ -1404,12 +1417,10 @@ export default function App() {
 
       if (!user || !item) return;
 
-      const location = await getAllowedProductLocation(user.uid);
       const updatedItem = {
         ...item,
         category,
         currentStore: selectedStore,
-        location,
       };
 
       setItems((currentItems) =>
@@ -1495,6 +1506,14 @@ export default function App() {
     const stopAuth = onAuthStateChanged(auth, (currentUser) => {
       const currentAuthSessionId = ++authSessionId;
 
+      if (storePresenceTimeoutRef.current) {
+        clearTimeout(storePresenceTimeoutRef.current);
+        storePresenceTimeoutRef.current = null;
+      }
+
+      storePresenceSessionRef.current += 1;
+      setStorePresencePrompt(null);
+
       if (stopDatabase) {
         stopDatabase();
         stopDatabase = null;
@@ -1544,7 +1563,14 @@ export default function App() {
 
             pendingOperationsRef.current =
               Array.isArray(parsedOperations)
-                ? parsedOperations
+                ? parsedOperations.map((operation) => ({
+                    ...operation,
+                    scope:
+                      operation.scope ?? "shoppingList",
+                    value: stripLocationData(
+                      operation.value
+                    ),
+                  }))
                 : [];
           } catch {
             pendingOperationsRef.current = [];
@@ -1605,6 +1631,41 @@ export default function App() {
             setPeople(nextState.people);
             setActiveListId(nextState.activeListId);
             setLoaded(true);
+
+            Object.entries(firebaseData.lists ?? {}).forEach(
+              ([listId, list]) => {
+                Object.entries(list?.items ?? {}).forEach(
+                  ([itemId, item]) => {
+                    if (
+                      !item ||
+                      typeof item !== "object" ||
+                      !("location" in item)
+                    ) {
+                      return;
+                    }
+
+                    const locationPath =
+                      `lists/${listId}/items/${item.id ?? itemId}/location`;
+                    const alreadyQueued =
+                      pendingOperationsRef.current.some(
+                        (operation) =>
+                          operation.userId ===
+                            currentUser.uid &&
+                          operation.scope ===
+                            "shoppingList" &&
+                          operation.path === locationPath
+                      );
+
+                    if (!alreadyQueued) {
+                      enqueueFirebaseWriteRef.current?.(
+                        locationPath,
+                        null
+                      );
+                    }
+                  }
+                );
+              }
+            );
 
             const firebaseLists = Object.values(
               firebaseData.lists ?? {}
@@ -1774,8 +1835,6 @@ export default function App() {
           categories: routeCategories,
         }
       );
-      const location = await getAllowedProductLocation(user.uid);
-
       const item = {
         id: createId("item-"),
         name: cleanedName,
@@ -1784,7 +1843,6 @@ export default function App() {
         completionTime: "",
         createdAt: Date.now(),
         currentStore: selectedStore,
-        location,
       };
 
       setItems((currentItems) => [
@@ -1806,6 +1864,10 @@ export default function App() {
       );
 
       closeItemModal();
+      scheduleStorePresenceCheck(
+        user.uid,
+        selectedStore
+      );
     } catch (error) {
       console.error(
         "Product toevoegen mislukt:",
@@ -1832,7 +1894,6 @@ export default function App() {
       completed,
       completionTime,
       currentStore: selectedStore,
-      location: completed ? "" : item.location ?? "",
     };
 
     setItems((currentItems) =>
@@ -1856,15 +1917,7 @@ export default function App() {
       }
     );
 
-    if (completed) {
-      scheduleCompletedItemLocation({
-        userId: user.uid,
-        listId: activeListId,
-        itemId: id,
-        completionTime,
-        item: updatedItem,
-      });
-    }
+    scheduleStorePresenceCheck(user.uid, selectedStore);
   };
 
   const removeItem = (id) => {
@@ -2941,6 +2994,61 @@ export default function App() {
             ]}
             SectionSeparatorComponent={() => <View style={styles.sectionSpacing} />}
           />
+        )}
+
+        {storePresencePrompt && (
+          <View
+            style={styles.storePresencePrompt}
+            accessibilityRole="alert"
+          >
+            <View style={styles.storePresencePromptIcon}>
+              <Ionicons
+                name="storefront-outline"
+                size={20}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <View style={styles.storePresencePromptCopy}>
+              <Text style={styles.storePresencePromptTitle}>
+                Ben je nu bij {storePresencePrompt.storeName}?
+              </Text>
+              <Text style={styles.storePresencePromptText}>
+                {storePresencePrompt.address ||
+                  "Adres niet beschikbaar"}
+              </Text>
+            </View>
+
+            <View style={styles.storePresencePromptActions}>
+              <TouchableOpacity
+                style={styles.storePresenceNoButton}
+                onPress={() =>
+                  handleStorePresenceResponse(false)
+                }
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Nee, ik ben niet bij deze winkel"
+              >
+                <Text style={styles.storePresenceNoText}>
+                  Nee
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.storePresenceYesButton}
+                onPress={() =>
+                  handleStorePresenceResponse(true)
+                }
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Ja, ik ben bij deze winkel"
+              >
+                <Text style={styles.storePresenceYesText}>
+                  Ja
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
         <TouchableOpacity
