@@ -14,7 +14,8 @@ Voor productacties kunnen de volgende gegevens in het Firebase-account worden op
 - afrondstatus;
 - aanmaakmoment, afrondmoment en archiefmoment;
 - de op dat moment gekozen supermarkt;
-- antwoorden op de optionele vraag of de gebruiker bij de geselecteerde winkel is.
+- antwoorden op de optionele vraag of de gebruiker bij de geselecteerde winkel is;
+- na een bevestigend antwoord eventueel de bevestigde winkelnaam, het leesbare adres, de bevestigingstijd en een technisch bevestigings-ID bij het actuele product en de bijbehorende producthistorie.
 
 Productacties worden als historie bewaard, ook wanneer het zichtbare product of de zichtbare lijst later wordt verwijderd. Dit voorkomt dat normale apphandelingen de historie wissen.
 
@@ -22,7 +23,11 @@ Productacties worden als historie bewaard, ook wanneer het zichtbare product of 
 
 De instelling **Winkelbezoek herkennen** staat standaard uit. Bij inschakelen vraagt SortIt toestemming voor locatiegebruik terwijl de app geopend is. SortIt gebruikt geen achtergrondlocatie.
 
-Na een productactie kan SortIt locatie lokaal gebruiken om te bepalen of binnen 150 meter en één uur al antwoord is gegeven en om een leesbaar adres te bepalen. Daarna kan de app vragen of de gebruiker bij de geselecteerde winkel is. De GPS-coördinaten blijven op het apparaat en worden niet naar Firebase gestuurd. Na **Ja** kan Firebase de gekozen winkelnaam en het gevonden adres ontvangen. Daarnaast ontvangt Firebase het antwoord, het antwoordtijdstip en de gebruikte straal. Bij **Nee** wordt geen adres als winkeladres opgeslagen.
+Na een productactie kan SortIt locatie lokaal gebruiken om te bepalen of binnen 150 meter en één uur al antwoord is gegeven en om een leesbaar adres te bepalen. Daarna kan de app vragen of de gebruiker bij de geselecteerde winkel is. De GPS-coördinaten blijven op het apparaat en worden niet naar Firebase gestuurd.
+
+Na **Ja** kan Firebase de gekozen winkelnaam, het gevonden adres, het antwoord, het antwoordtijdstip, de gebruikte straal en een technisch bevestigings-ID ontvangen. De winkelnaam, het adres, de bevestigingstijd en het bevestigings-ID kunnen gedurende maximaal één uur worden gekoppeld aan producten die op precies dezelfde boodschappenlijst en bij dezelfde geselecteerde winkel worden afgevinkt. Deze gegevens worden dan zowel bij het actuele product als in de blijvende producthistorie (`productArchive`) opgeslagen. Als de bevestiging kort na het afvinken wordt gegeven, kan hiervoor een aanvullend historisch `location_attached`-record worden aangemaakt. Ook deze records bevatten geen GPS-coördinaten.
+
+Bij **Nee** wordt geen adres aan producten of producthistorie gekoppeld en wordt geen adres als winkeladres opgeslagen.
 
 Het uitschakelen van de instelling stopt nieuwe locatieopvragingen en verwijdert de lokale antwoordposities. Coördinaten die door een oudere appversie al in Firebase zijn opgeslagen, worden hierdoor niet automatisch verwijderd.
 
