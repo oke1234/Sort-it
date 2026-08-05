@@ -172,7 +172,7 @@ export const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 18,
     paddingTop: 14,
-    paddingBottom: 170,
+    paddingBottom: 210,
   },
 
   notePadScroll: {

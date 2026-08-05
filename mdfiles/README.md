@@ -47,11 +47,19 @@ Een archiefrecord bevat onder andere:
   "createdAt": 1785751200000,
   "completionTime": "",
   "currentStore": "Lidl",
+  "location": {
+    "storeName": "Lidl",
+    "address": "Voorbeeldstraat 12, 1234 AB Utrecht, Nederland",
+    "confirmedAt": 1785751000000,
+    "confirmationId": "store-confirmation-1785751000000abc123"
+  },
   "archivedAt": 1785751200000
 }
 ```
 
 Als de gebruiker winkelherkenning toestaat, gebruikt de app voorgrondlocatie uitsluitend lokaal om een straal van 150 meter te herkennen en een leesbaar adres te bepalen. Firebase ontvangt de gekozen winkelnaam, alleen na **Ja** het gevonden winkeladres, het antwoord en het antwoordtijdstip. Coördinaten worden niet verstuurd.
+
+Een bevestigde adreslocatie kan gedurende één uur worden gekoppeld aan afgevinkte producten op precies dezelfde lijst en bij dezelfde winkel. Die veilige locatie staat dan zowel bij het actuele item als in `productArchive`. Als de bevestiging vlak na het afvinken komt, schrijft de app daarvoor een extra append-only `location_attached`-event.
 
 De app verwijdert geen records uit `productArchive`. Het verwijderen van een zichtbaar product of een zichtbare lijst maakt juist eerst een nieuw archiefrecord en verwijdert daarna alleen het actuele lijstrecord.
 

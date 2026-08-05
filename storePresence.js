@@ -8,15 +8,23 @@ export const STORE_PRESENCE_IDLE_MS = 5000;
 
 const STORE_PRESENCE_KEY = "SORTIT_STORE_PRESENCE";
 const RESPONSE_COOLDOWN_MS = 60 * 60 * 1000;
+export const STORE_CONFIRMATION_VALID_MS = 60 * 60 * 1000;
 const ACTIVE_GPS_COOLDOWN_MS = 60 * 60 * 1000;
 const LAST_KNOWN_MAX_AGE_MS = 5 * 60 * 1000;
 const MAX_SAVED_RESPONSES = 20;
 
 const activePositionRequests = new Map();
 const addressCache = new Map();
+const confirmedResponseCache = new Map();
 
 const getStorageKey = (userId) =>
   `${STORE_PRESENCE_KEY}:${userId}`;
+
+const getConfirmedResponseCacheKey = (
+  userId,
+  listId,
+  storeName
+) => `${userId}:${listId}:${storeName}`;
 
 const normalizeState = (value = {}) => ({
   lastActiveRequestAt: Number.isFinite(
@@ -273,14 +281,29 @@ export const saveStorePresenceResponse = async (
 ) => {
   if (!userId || !candidate) return;
 
-  const state = await loadState(userId);
   const response = {
     storeName: candidate.storeName,
+    listId: candidate.listId ?? "",
+    address: candidate.address ?? "",
+    confirmationId: candidate.confirmationId ?? "",
     latitude: candidate.latitude,
     longitude: candidate.longitude,
     answeredAt,
     confirmed: confirmed === true,
   };
+  const cacheKey = getConfirmedResponseCacheKey(
+    userId,
+    response.listId,
+    response.storeName
+  );
+
+  if (response.confirmed) {
+    confirmedResponseCache.set(cacheKey, response);
+  } else {
+    confirmedResponseCache.delete(cacheKey);
+  }
+
+  const state = await loadState(userId);
 
   await saveState(userId, {
     ...state,
@@ -294,9 +317,62 @@ export const saveStorePresenceResponse = async (
   });
 };
 
+export const getRecentConfirmedStoreLocation = async (
+  userId,
+  listId,
+  storeName,
+  now = Date.now()
+) => {
+  if (!userId || !listId || !storeName) return null;
+
+  const cacheKey = getConfirmedResponseCacheKey(
+    userId,
+    listId,
+    storeName
+  );
+  let response = confirmedResponseCache.get(cacheKey);
+
+  if (
+    !response ||
+    now - response.answeredAt < 0 ||
+    now - response.answeredAt >= STORE_CONFIRMATION_VALID_MS
+  ) {
+    const state = await loadState(userId);
+    const latestResponse = state.responses.find(
+      (savedResponse) =>
+        savedResponse.listId === listId &&
+        savedResponse.storeName === storeName &&
+        now - savedResponse.answeredAt >= 0 &&
+        now - savedResponse.answeredAt <
+          STORE_CONFIRMATION_VALID_MS
+    );
+    response = latestResponse?.confirmed
+      ? latestResponse
+      : null;
+
+    if (response) {
+      confirmedResponseCache.set(cacheKey, response);
+    } else {
+      confirmedResponseCache.delete(cacheKey);
+    }
+  }
+
+  if (!response) return null;
+
+  return {
+    storeName: response.storeName,
+    address: response.address ?? "",
+    confirmedAt: response.answeredAt,
+    confirmationId: response.confirmationId ?? "",
+  };
+};
+
 export const clearStorePresenceData = async (userId) => {
   if (!userId) return;
 
   activePositionRequests.delete(userId);
+  Array.from(confirmedResponseCache.keys())
+    .filter((key) => key.startsWith(`${userId}:`))
+    .forEach((key) => confirmedResponseCache.delete(key));
   await AsyncStorage.removeItem(getStorageKey(userId));
 };

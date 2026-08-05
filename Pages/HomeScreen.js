@@ -58,7 +58,9 @@ import {
 import { getCategory } from "../categoryService";
 import {
   getStorePresenceCandidate,
+  getRecentConfirmedStoreLocation,
   saveStorePresenceResponse,
+  STORE_CONFIRMATION_VALID_MS,
   STORE_PRESENCE_IDLE_MS,
   STORE_PRESENCE_RADIUS_METERS,
 } from "../storePresence";
@@ -106,9 +108,36 @@ const getStoreLogoSource = (store) =>
       }
     : store?.logo;
 
-const stripLocationData = (value) => {
+const sanitizeItemLocation = (location) => {
+  if (!location || typeof location !== "object") return null;
+
+  const storeName =
+    typeof location.storeName === "string"
+      ? location.storeName
+      : "";
+  const address =
+    typeof location.address === "string"
+      ? location.address
+      : "";
+  const confirmedAt = Number(location.confirmedAt);
+  const confirmationId =
+    typeof location.confirmationId === "string"
+      ? location.confirmationId
+      : "";
+
+  if (!storeName || !Number.isFinite(confirmedAt)) return null;
+
+  return {
+    storeName,
+    address,
+    confirmedAt,
+    ...(confirmationId ? { confirmationId } : {}),
+  };
+};
+
+const sanitizeLocationData = (value) => {
   if (Array.isArray(value)) {
-    return value.map(stripLocationData);
+    return value.map(sanitizeLocationData);
   }
 
   if (!value || typeof value !== "object") {
@@ -116,12 +145,14 @@ const stripLocationData = (value) => {
   }
 
   return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => key !== "location")
-      .map(([key, nestedValue]) => [
-        key,
-        stripLocationData(nestedValue),
-      ])
+    Object.entries(value).flatMap(([key, nestedValue]) => {
+      if (key === "location") {
+        const location = sanitizeItemLocation(nestedValue);
+        return location ? [[key, location]] : [];
+      }
+
+      return [[key, sanitizeLocationData(nestedValue)]];
+    })
   );
 };
 
@@ -134,7 +165,7 @@ const normalizeItems = (savedItems, fallbackStore = "") => {
     .filter((item) => item?.id)
     .map((item) => {
       const { completedAt, ...normalizedItem } =
-        stripLocationData(item);
+        sanitizeLocationData(item);
 
       return {
         ...normalizedItem,
@@ -1139,6 +1170,9 @@ export default function App() {
                 item.currentStore ??
                 archiveDetails.currentStore ??
                 "",
+              ...(sanitizeItemLocation(item.location)
+                ? { location: sanitizeItemLocation(item.location) }
+                : {}),
               archivedAt: operationTime,
             },
           };
@@ -1148,7 +1182,7 @@ export default function App() {
         userId,
         scope,
         path,
-        value: stripLocationData(value),
+        value: sanitizeLocationData(value),
       };
 
       const nextOperations = [
@@ -1185,8 +1219,8 @@ export default function App() {
   );
 
   const scheduleStorePresenceCheck = useCallback(
-    (userId, storeName) => {
-      if (!userId || !storeName) return;
+    (userId, storeName, listId) => {
+      if (!userId || !storeName || !listId) return;
 
       if (storePresenceTimeoutRef.current) {
         clearTimeout(storePresenceTimeoutRef.current);
@@ -1217,6 +1251,7 @@ export default function App() {
           setStorePresencePrompt({
             ...candidate,
             userId,
+            listId,
           });
         },
         STORE_PRESENCE_IDLE_MS
@@ -1253,7 +1288,7 @@ export default function App() {
 
       saveStorePresenceResponse(
         prompt.userId,
-        prompt,
+        { ...prompt, confirmationId },
         confirmed,
         answeredAt
       ).catch((error) => {
@@ -1269,6 +1304,7 @@ export default function App() {
           userId: prompt.userId,
           confirmationId,
           storeName: prompt.storeName,
+          listId: prompt.listId,
           storeAddress:
             confirmed === true ? prompt.address ?? "" : "",
           confirmed: confirmed === true,
@@ -1279,8 +1315,67 @@ export default function App() {
         {},
         "storeConfirmation"
       );
+
+      if (confirmed === true) {
+        const location = {
+          storeName: prompt.storeName,
+          address: prompt.address ?? "",
+          confirmedAt: answeredAt,
+          confirmationId,
+        };
+        const confirmedList = lists.find(
+          (list) => list.id === prompt.listId
+        );
+        const recentlyCompletedItems =
+          confirmedList?.selectedStore === prompt.storeName
+            ? (confirmedList.items ?? []).filter(
+                (item) =>
+                  item.completed &&
+                  Number.isFinite(item.completionTime) &&
+                  answeredAt - item.completionTime >= 0 &&
+                  answeredAt - item.completionTime <
+                    STORE_CONFIRMATION_VALID_MS
+              )
+            : [];
+
+        if (recentlyCompletedItems.length > 0) {
+          const itemIds = new Set(
+            recentlyCompletedItems.map((item) => item.id)
+          );
+
+          setLists((currentLists) =>
+            currentLists.map((list) =>
+              list.id === prompt.listId
+                ? {
+                    ...list,
+                    items: list.items.map((item) =>
+                      itemIds.has(item.id)
+                        ? { ...item, location }
+                        : item
+                    ),
+                  }
+                : list
+            )
+          );
+
+          recentlyCompletedItems.forEach((item) => {
+            const updatedItem = { ...item, location };
+
+            enqueueFirebaseWrite(
+              `lists/${prompt.listId}/items/${item.id}`,
+              updatedItem,
+              {
+                listId: prompt.listId,
+                action: "location_attached",
+                currentStore: prompt.storeName,
+                items: [updatedItem],
+              }
+            );
+          });
+        }
+      }
     },
-    [enqueueFirebaseWrite, storePresencePrompt]
+    [enqueueFirebaseWrite, lists, storePresencePrompt]
   );
 
   enqueueFirebaseWriteRef.current =
@@ -1567,7 +1662,7 @@ export default function App() {
                     ...operation,
                     scope:
                       operation.scope ?? "shoppingList",
-                    value: stripLocationData(
+                    value: sanitizeLocationData(
                       operation.value
                     ),
                   }))
@@ -1636,10 +1731,16 @@ export default function App() {
               ([listId, list]) => {
                 Object.entries(list?.items ?? {}).forEach(
                   ([itemId, item]) => {
+                    if (!item || typeof item !== "object") {
+                      return;
+                    }
+
+                    const safeLocation = sanitizeItemLocation(
+                      item.location
+                    );
                     if (
-                      !item ||
-                      typeof item !== "object" ||
-                      !("location" in item)
+                      JSON.stringify(item.location ?? null) ===
+                      JSON.stringify(safeLocation)
                     ) {
                       return;
                     }
@@ -1659,7 +1760,7 @@ export default function App() {
                     if (!alreadyQueued) {
                       enqueueFirebaseWriteRef.current?.(
                         locationPath,
-                        null
+                        safeLocation
                       );
                     }
                   }
@@ -1866,7 +1967,8 @@ export default function App() {
       closeItemModal();
       scheduleStorePresenceCheck(
         user.uid,
-        selectedStore
+        selectedStore,
+        activeListId
       );
     } catch (error) {
       console.error(
@@ -1881,7 +1983,7 @@ export default function App() {
     }
   };
 
-  const toggleItem = (id) => {
+  const toggleItem = async (id) => {
     const user = auth.currentUser;
     const item = items.find((currentItem) => currentItem.id === id);
 
@@ -1889,11 +1991,22 @@ export default function App() {
 
     const completed = !item.completed;
     const completionTime = completed ? Date.now() : "";
+    const location = completed
+      ? await getRecentConfirmedStoreLocation(
+          user.uid,
+          activeListId,
+          selectedStore,
+          completionTime
+        )
+      : null;
+    const itemWithoutLocation = { ...item };
+    delete itemWithoutLocation.location;
     const updatedItem = {
-      ...item,
+      ...itemWithoutLocation,
       completed,
       completionTime,
       currentStore: selectedStore,
+      ...(location ? { location } : {}),
     };
 
     setItems((currentItems) =>
@@ -1917,7 +2030,11 @@ export default function App() {
       }
     );
 
-    scheduleStorePresenceCheck(user.uid, selectedStore);
+    scheduleStorePresenceCheck(
+      user.uid,
+      selectedStore,
+      activeListId
+    );
   };
 
   const removeItem = (id) => {

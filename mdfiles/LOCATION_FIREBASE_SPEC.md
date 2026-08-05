@@ -127,11 +127,13 @@ Firebase ontvangt geen latitude of longitude. Bij **Nee** of wanneer geen adres 
 - Bij herstel van internet worden antwoorden naar `storeConfirmations` gestuurd.
 - Een winkelantwoord wordt maar één keer geschreven en niet later aangepast.
 
-## 10. Oude locatiegegevens
+## 10. Locatie bij afgevinkte producten
 
-- Nieuwe product- en archiefoperaties bevatten geen `location`-veld meer.
-- Oude lokale wachtrijoperaties worden vóór synchronisatie ontdaan van `location`.
-- Oude `location`-velden bij actuele boodschappen worden na het laden via de gewone wachtrij verwijderd.
+- Na **Ja** is het bevestigde adres één uur geldig voor dezelfde lijst en winkel.
+- Een binnen dat uur afgevinkt product krijgt een veilig `location`-object in het actuele item en het append-only archief.
+- Volgt de bevestiging na het afvinken, dan worden passende items uit het voorafgaande uur gekoppeld met een nieuw `location_attached`-event.
+- `location` bevat alleen `storeName`, `address`, `confirmedAt` en `confirmationId`; latitude en longitude blijven lokaal.
+- Oude lokale wachtrij- en itemlocaties worden vóór synchronisatie naar deze veilige vorm gesanitized of verwijderd.
 - Historische coördinaten die al in een append-only Firebase-archief staan, vereisen een afzonderlijke beheerdersmigratie als ze verwijderd moeten worden.
 
 ## 11. Aanbevolen Firebase-regels

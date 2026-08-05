@@ -119,6 +119,12 @@ Voorbeeld:
   "createdAt": 1785751200000,
   "completionTime": 1785754800000,
   "currentStore": "Lidl",
+  "location": {
+    "storeName": "Lidl",
+    "address": "Voorbeeldstraat 12, 1234 AB Utrecht, Nederland",
+    "confirmedAt": 1785754700000,
+    "confirmationId": "store-confirmation-1785754700000abc123"
+  },
   "archivedAt": 1785754800000
 }
 ```
@@ -133,6 +139,7 @@ Mogelijke acties:
 - `cleared_completed`
 - `list_cleared`
 - `list_deleted`
+- `location_attached`
 
 Een actie krijgt altijd een nieuw `eventId`. De app werkt bestaande archiefrecords niet bij en verwijdert ze niet.
 
@@ -187,6 +194,8 @@ Alle tijden zijn Unix-tijden in milliseconden. Hierdoor blijven sorteren en loca
 
 `currentStore` bevat de geselecteerde winkel op het moment van de productactie. De lijst bewaart daarnaast zijn eigen `selectedStore`, zodat de UI na opnieuw openen dezelfde winkel toont.
 
+Na een bevestigend winkelantwoord is de adreslocatie één uur geldig voor precies die lijst en winkel. Producten die in dat venster worden afgevinkt krijgen `location` in zowel het actuele item als het archiefevent. Als de bevestiging volgt op het afvinken, worden reeds afgevinkte items uit het voorafgaande uur op diezelfde lijst via een append-only `location_attached`-event gekoppeld. Dit veld bevat nooit GPS-coördinaten.
+
 Bij een landwijziging toont de app de bijbehorende standaardwinkels:
 
 - Nederland: Lidl, Jumbo, Albert Heijn, Plus, Aldi en Spar.
@@ -203,7 +212,7 @@ De vraag **Ben je nu bij [geselecteerde winkel]?** verschijnt als niet-blokkeren
 
 Alle GPS-coördinaten blijven lokaal. Firebase ontvangt winkelnaam, een alleen na **Ja** bevestigd adres, antwoord, antwoordtijd en de ingestelde straal. Er is geen achtergrondlocatie.
 
-Nieuwe operaties worden ontdaan van `location`. Bij het laden verwijdert de app oude `location`-velden uit actuele boodschappen. Historische append-only archiefrecords vereisen voor verwijdering een afzonderlijke beheerdersmigratie.
+Nieuwe operaties sanitizen `location` tot uitsluitend winkelnaam, adres, bevestigingstijd en de verwijzing naar de bevestiging. Oude locatievormen met GPS-coördinaten worden bij het laden verwijderd of naar deze veilige vorm teruggebracht.
 
 ## 10. Beveiligingsregels
 
