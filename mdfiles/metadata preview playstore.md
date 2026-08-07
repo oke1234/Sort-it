@@ -68,6 +68,7 @@
 | Website | `https://oke1234.github.io/Sort-it/` |
 | Privacybeleid-URL | `https://oke1234.github.io/Sort-it/privacy-policy.html` |
 | Accountverwijdering-URL | `https://oke1234.github.io/Sort-it/delete-account.html` |
+| Support-URL | `https://oke1234.github.io/Sort-it/support.html` |
 
 De accountverwijderingspagina moet SortIt of de ontwikkelaarsnaam noemen, duidelijk uitleggen hoe een verwijderverzoek wordt ingediend en vermelden welke accountgegevens worden verwijderd of eventueel tijdelijk worden bewaard.
 
