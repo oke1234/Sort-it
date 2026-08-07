@@ -138,6 +138,8 @@ Firebase ontvangt geen latitude of longitude. Bij **Nee** of wanneer geen adres 
 
 ## 11. Aanbevolen Firebase-regels
 
+Onderstaand fragment geldt specifiek voor winkelbevestigingen. Gebruik voor de volledige app, inclusief veilige accountverwijdering, het actuele bestand `database.rules.json` in de projectroot.
+
 ```json
 {
   "rules": {

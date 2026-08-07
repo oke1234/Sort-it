@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "plugins": [
       [
         "expo-image-picker",
@@ -24,9 +18,18 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "SortIt gebruikt je locatie alleen terwijl de app geopend is om te vragen of je bij de gekozen winkel bent en het adres te bepalen. Alleen een bevestigd adres kan naar Firebase; coördinaten blijven op je telefoon.",
+          "locationWhenInUsePermission": "SortIt gebruikt locatie alleen terwijl de app open is. Na jouw bevestiging kan het winkeladres aan passende items en producthistorie in Firebase worden gekoppeld; GPS-coördinaten blijven op je telefoon.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
         }
       ]
     ],
@@ -43,8 +46,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

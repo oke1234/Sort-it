@@ -42,6 +42,11 @@ import {
 } from "firebase/database";
 
 import { auth, db } from "../firebaseConfig";
+import {
+  isAccountDeletionInProgress,
+  registerAccountSyncEnd,
+  registerAccountSyncStart,
+} from "../accountDeletion";
 
 import {
   STORAGE_KEY,
@@ -1079,15 +1084,19 @@ export default function App() {
     if (
       !isOnline ||
       !user ||
-      syncInProgressRef.current
+      syncInProgressRef.current ||
+      isAccountDeletionInProgress(user.uid)
     ) {
       return;
     }
 
     syncInProgressRef.current = true;
+    registerAccountSyncStart(user.uid);
 
     try {
       while (auth.currentUser?.uid === user.uid) {
+        if (isAccountDeletionInProgress(user.uid)) break;
+
         const userOperations =
           pendingOperationsRef.current.filter(
             (pendingOperation) =>
@@ -1128,6 +1137,7 @@ export default function App() {
       );
     } finally {
       syncInProgressRef.current = false;
+      registerAccountSyncEnd(user.uid);
     }
   }, [isOnline, persistPendingOperations]);
 
@@ -1142,7 +1152,12 @@ export default function App() {
         currentUserIdRef.current ??
         auth.currentUser?.uid;
 
-      if (!userId) return;
+      if (
+        !userId ||
+        isAccountDeletionInProgress(userId)
+      ) {
+        return;
+      }
 
       const operationId = createId("sync-");
       const operationTime = Date.now();
@@ -1712,6 +1727,12 @@ export default function App() {
         stopDatabase = onValue(
           shoppingListRef,
           (snapshot) => {
+            if (
+              isAccountDeletionInProgress(currentUser.uid)
+            ) {
+              return;
+            }
+
             const firebaseData = snapshot.val() ?? {};
             const mergedData = applyPendingOperations(
               firebaseData,
@@ -3730,7 +3751,8 @@ export default function App() {
 
             <Text style={styles.storeModalText}>
               Kies een supermarkt in {currentCountry.label}. De volgorde van de
-              categorieën past zich aan je keuze aan.
+              categorieën past zich aan je keuze aan. SortIt is onafhankelijk
+              en niet verbonden aan deze supermarktketens.
             </Text>
 
             <ScrollView

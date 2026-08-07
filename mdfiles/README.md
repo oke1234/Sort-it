@@ -71,6 +71,8 @@ De app verwijdert geen records uit `productArchive`. Het verwijderen van een zic
 4. Zet de Firebase-webconfiguratie in `firebaseConfig.js`.
 5. Gebruik regels die gebruikers alleen hun eigen gegevens laten lezen en schrijven en die het archief append-only houden.
 
+Het bestand `database.rules.json` bevat de actuele regels, inclusief de gecontroleerde volledige verwijdering van `users/{uid}` na een accountverwijderingsverzoek. Publiceer deze regels met Firebase CLI of kopieer ze naar de Realtime Database-console voordat je de accountverwijderknop test.
+
 Voorbeeldregels:
 
 ```json
@@ -79,6 +81,10 @@ Voorbeeldregels:
     "users": {
       "$uid": {
         ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && !newData.exists() && data.child('accountDeletionRequested').val() === true",
+        "accountDeletionRequested": {
+          ".write": "$uid === auth.uid && (newData.val() === true || !newData.exists())"
+        },
         "shoppingList": {
           ".write": "$uid === auth.uid"
         },
@@ -98,7 +104,7 @@ Voorbeeldregels:
 }
 ```
 
-Met deze regels kan de app een bestaand archiefrecord niet wijzigen of verwijderen. Maak voor een wettelijk verwijderverzoek een afzonderlijk beheerd proces buiten de gewone appflow.
+Met deze regels kan de app een bestaand archiefrecord niet afzonderlijk wijzigen of verwijderen. Alleen nadat de opnieuw geauthenticeerde gebruiker `accountDeletionRequested` heeft gezet, kan de volledige gebruikersboom als onderdeel van accountverwijdering worden verwijderd.
 
 ## Lokaal starten
 

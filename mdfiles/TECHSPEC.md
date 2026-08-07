@@ -224,6 +224,10 @@ Minimale aanbevolen Realtime Database-regels:
     "users": {
       "$uid": {
         ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && !newData.exists() && data.child('accountDeletionRequested').val() === true",
+        "accountDeletionRequested": {
+          ".write": "$uid === auth.uid && (newData.val() === true || !newData.exists())"
+        },
         "shoppingList": {
           ".write": "$uid === auth.uid"
         },
@@ -243,7 +247,7 @@ Minimale aanbevolen Realtime Database-regels:
 }
 ```
 
-De regel voor `productArchive` staat alleen een nieuwe, niet-lege waarde toe op een nog niet bestaand eventpad. Daarmee kan de gewone app bestaande historie niet wijzigen of verwijderen.
+De regel voor `productArchive` staat alleen een nieuwe, niet-lege waarde toe op een nog niet bestaand eventpad. Daarmee kan de gewone app bestaande historie niet wijzigen of verwijderen. Voor een volledige accountverwijdering zet de app na herauthenticatie eerst `accountDeletionRequested` op `true`; alleen dan staat de regel op gebruikersniveau toe dat de volledige `users/{uid}`-boom wordt verwijderd.
 
 ## 11. Acceptatiecriteria
 

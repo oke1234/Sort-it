@@ -13,7 +13,7 @@ export const DATA_SHARING_OPTIONS = [
     icon: "location-outline",
     title: "Winkelbezoek herkennen",
     description:
-      "Laat SortIt na een productactie vragen of je bij de gekozen winkel bent. Alleen een bevestigd winkeladres gaat naar Firebase; coördinaten blijven op je telefoon.",
+      "Laat SortIt na een productactie vragen of je bij de gekozen winkel bent. Na jouw bevestiging kan het winkeladres één uur aan passende items en producthistorie worden gekoppeld. GPS-coördinaten blijven op je telefoon.",
   },
 ];
 
@@ -53,4 +53,12 @@ export const saveDataSharing = async (userId, value) => {
   );
 
   return normalized;
+};
+
+export const clearDataSharing = async (userId) => {
+  if (!userId) return;
+
+  await AsyncStorage.removeItem(
+    getUserDataSharingKey(userId)
+  );
 };

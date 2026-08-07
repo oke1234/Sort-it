@@ -4,6 +4,8 @@ import {
   Alert,
   AppState,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -17,17 +19,27 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  deleteUser,
+  EmailAuthProvider,
   reload,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   signOut,
   updateProfile,
   verifyBeforeUpdateEmail,
 } from "firebase/auth";
+import { ref, remove, set } from "firebase/database";
 import * as Location from "expo-location";
 
-import { auth } from "../firebaseConfig";
+import { auth, db } from "../firebaseConfig";
+import {
+  beginAccountDeletion,
+  endAccountDeletion,
+  waitForAccountSyncIdle,
+} from "../accountDeletion";
 import {
   APP_LANGUAGE_KEY,
+  clearDataSharing,
   DATA_SHARING_OPTIONS,
   DEFAULT_DATA_SHARING,
   loadDataSharing,
@@ -38,7 +50,17 @@ import {
   countries,
   DEFAULT_COUNTRY_CODE,
   getCountryStorageKey,
+  STORAGE_KEY,
+  STORE_KEY,
 } from "../shoppingData";
+
+const PRIVACY_POLICY_URL =
+  "https://oke1234.github.io/Sort-it/privacy-policy.html";
+const DELETE_ACCOUNT_URL =
+  "https://oke1234.github.io/Sort-it/delete-account.html";
+const PENDING_SYNC_KEY = "SHOPPING_LISTS_PENDING_SYNC_V2";
+const getUserListsKey = (userId) =>
+  `SHOPPING_LISTS_V2:${userId}`;
 
 const LANGUAGE_OPTIONS = [
   { code: "nl", shortLabel: "NL", label: "Nederlands" },
@@ -78,6 +100,9 @@ const getAuthErrorMessage = (error) => {
       return "Deze wijziging is nog niet ingeschakeld voor dit account.";
     case "auth/user-token-expired":
       return "Je sessie is verlopen. Log opnieuw in en probeer het nogmaals.";
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+      return "Het ingevulde wachtwoord is niet juist.";
     default:
       return "Er is iets misgegaan. Probeer het opnieuw.";
   }
@@ -95,6 +120,10 @@ export default function ProfielScreen({ navigation }) {
   const [sendingEmailLink, setSendingEmailLink] = useState(false);
   const [sendingPasswordLink, setSendingPasswordLink] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] =
+    useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [language, setLanguage] = useState("nl");
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [countryCode, setCountryCode] = useState(
@@ -418,6 +447,112 @@ export default function ProfielScreen({ navigation }) {
     }
   };
 
+  const openExternalPage = async (url) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(
+        "Pagina niet geopend",
+        "Controleer je internetverbinding en probeer het opnieuw."
+      );
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (deletingAccount) return;
+
+    setDeletePassword("");
+    setDeleteModalVisible(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    const currentUser = auth.currentUser;
+    const userId = currentUser?.uid;
+    const email = currentUser?.email;
+
+    if (!currentUser || !userId || !email) {
+      Alert.alert(
+        "Niet ingelogd",
+        "Log opnieuw in om je account te verwijderen."
+      );
+      return;
+    }
+
+    if (!deletePassword) {
+      Alert.alert(
+        "Wachtwoord ontbreekt",
+        "Vul je huidige wachtwoord in om door te gaan."
+      );
+      return;
+    }
+
+    setDeletingAccount(true);
+    beginAccountDeletion(userId);
+
+    try {
+      const credential = EmailAuthProvider.credential(
+        email,
+        deletePassword
+      );
+
+      await reauthenticateWithCredential(
+        currentUser,
+        credential
+      );
+      await waitForAccountSyncIdle(userId);
+
+      const deletionFlagRef = ref(
+        db,
+        `users/${userId}/accountDeletionRequested`
+      );
+      await set(deletionFlagRef, true);
+      await remove(ref(db, `users/${userId}`));
+      await deleteUser(currentUser);
+
+      await Promise.allSettled([
+        clearStorePresenceData(userId),
+        clearDataSharing(userId),
+        AsyncStorage.multiRemove([
+          getUserListsKey(userId),
+          getCountryStorageKey(userId),
+          PENDING_SYNC_KEY,
+          STORAGE_KEY,
+          STORE_KEY,
+        ]),
+      ]);
+
+      endAccountDeletion(userId);
+      setDeletePassword("");
+      setDeleteModalVisible(false);
+
+      Alert.alert(
+        "Account verwijderd",
+        "Je SortIt-account en gekoppelde gegevens zijn verwijderd."
+      );
+    } catch (error) {
+      endAccountDeletion(userId);
+
+      try {
+        await set(
+          ref(
+            db,
+            `users/${userId}/accountDeletionRequested`
+          ),
+          null
+        );
+      } catch {
+        // De gebruikersdata kan al verwijderd zijn.
+      }
+
+      Alert.alert(
+        "Account niet verwijderd",
+        getAuthErrorMessage(error)
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   const renderButtonContent = (loading, icon, label, color = COLORS.white) =>
     loading ? (
       <ActivityIndicator color={color} />
@@ -641,7 +776,9 @@ export default function ProfielScreen({ navigation }) {
               inschakelt, kan SortIt vragen of je bij de gekozen winkel
               bent. Coördinaten blijven op je telefoon; Firebase ontvangt
               alleen de winkelnaam, een bevestigd adres, je antwoord en het
-              tijdstip. Er wordt geen achtergrondlocatie gebruikt.
+              tijdstip. Na je bevestiging kan het adres één uur aan passende
+              items en producthistorie worden gekoppeld. Er wordt geen
+              achtergrondlocatie gebruikt.
             </Text>
 
             {DATA_SHARING_OPTIONS.map((option, index) => (
@@ -845,8 +982,130 @@ export default function ProfielScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={() => setDeleteModalVisible(true)}
+            disabled={deletingAccount}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel="SortIt-account verwijderen"
+          >
+            <Ionicons
+              name="trash-outline"
+              size={20}
+              color={COLORS.danger}
+            />
+            <Text
+              style={[
+                styles.buttonText,
+                { color: COLORS.danger },
+              ]}
+            >
+              Verwijder account
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.policyLinks}>
+            <TouchableOpacity
+              onPress={() => openExternalPage(PRIVACY_POLICY_URL)}
+              accessibilityRole="link"
+            >
+              <Text style={styles.policyLinkText}>Privacybeleid</Text>
+            </TouchableOpacity>
+            <Text style={styles.policyLinkSeparator}>·</Text>
+            <TouchableOpacity
+              onPress={() => openExternalPage(DELETE_ACCOUNT_URL)}
+              accessibilityRole="link"
+            >
+              <Text style={styles.policyLinkText}>
+                Verwijderingsinformatie
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.version}>SortIt · versie 1.0.0</Text>
         </ScrollView>
+
+        <Modal
+          visible={deleteModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeDeleteModal}
+        >
+          <View style={styles.modalBackdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={styles.modalKeyboardView}
+            >
+              <View style={styles.deleteModalCard}>
+                <View style={styles.deleteModalIcon}>
+                  <Ionicons
+                    name="warning-outline"
+                    size={26}
+                    color={COLORS.danger}
+                  />
+                </View>
+                <Text style={styles.deleteModalTitle}>
+                  Account definitief verwijderen?
+                </Text>
+                <Text style={styles.deleteModalText}>
+                  Je account, lijsten, notities, producthistorie,
+                  winkelbevestigingen en opgeslagen winkelafbeeldingen worden
+                  verwijderd. Dit kan niet ongedaan worden gemaakt.
+                </Text>
+
+                <Text style={styles.label}>Huidig wachtwoord</Text>
+                <View style={styles.inputRow}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color={COLORS.gray}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={deletePassword}
+                    onChangeText={setDeletePassword}
+                    placeholder="Wachtwoord"
+                    placeholderTextColor="#98A19B"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!deletingAccount}
+                  />
+                </View>
+
+                <View style={styles.deleteModalActions}>
+                  <TouchableOpacity
+                    style={styles.deleteModalCancelButton}
+                    onPress={closeDeleteModal}
+                    disabled={deletingAccount}
+                  >
+                    <Text style={styles.deleteModalCancelText}>
+                      Annuleren
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.deleteModalConfirmButton,
+                      (!deletePassword || deletingAccount) &&
+                        styles.buttonDisabled,
+                    ]}
+                    onPress={handleDeleteAccount}
+                    disabled={!deletePassword || deletingAccount}
+                  >
+                    {deletingAccount ? (
+                      <ActivityIndicator color={COLORS.white} />
+                    ) : (
+                      <Text style={styles.deleteModalConfirmText}>
+                        Definitief verwijderen
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1167,6 +1426,97 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#F0C7C7",
     backgroundColor: COLORS.dangerSoft,
+  },
+  deleteAccountButton: {
+    minHeight: 50,
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 17,
+  },
+  policyLinks: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  policyLinkText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primaryDark,
+    textDecorationLine: "underline",
+  },
+  policyLinkSeparator: {
+    marginHorizontal: 9,
+    color: COLORS.gray,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+    backgroundColor: "rgba(20, 28, 23, 0.55)",
+  },
+  modalKeyboardView: {
+    width: "100%",
+  },
+  deleteModalCard: {
+    padding: 22,
+    borderRadius: 24,
+    backgroundColor: COLORS.white,
+  },
+  deleteModalIcon: {
+    width: 50,
+    height: 50,
+    marginBottom: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: COLORS.dangerSoft,
+  },
+  deleteModalTitle: {
+    fontSize: 21,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+  deleteModalText: {
+    marginTop: 9,
+    marginBottom: 18,
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.gray,
+  },
+  deleteModalActions: {
+    marginTop: 20,
+    flexDirection: "row",
+  },
+  deleteModalCancelButton: {
+    minHeight: 50,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  deleteModalCancelText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  deleteModalConfirmButton: {
+    minHeight: 50,
+    flex: 1.35,
+    marginLeft: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 15,
+    backgroundColor: COLORS.danger,
+  },
+  deleteModalConfirmText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.white,
   },
   version: {
     marginTop: 18,

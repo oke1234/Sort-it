@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="index,follow" />
+    <title>Privacybeleid SortIt</title>
+    <style>
+      body { margin: 0; background: #f6f8f6; color: #222; font: 16px/1.65 system-ui, sans-serif; }
+      main { max-width: 800px; margin: 0 auto; padding: 48px 24px 72px; }
+      h1, h2 { color: #176b3a; line-height: 1.25; }
+      a { color: #176b3a; font-weight: 700; }
+      .meta { padding: 18px; border-radius: 16px; background: #eaf5ed; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="index.html">← SortIt</a></p>
+      <h1>Privacybeleid SortIt</h1>
+      <div class="meta">
+        <strong>Verantwoordelijke:</strong> Casper Rutten<br />
+        <strong>Privacycontact:</strong> <a href="mailto:ruttencasper@gmail.com">ruttencasper@gmail.com</a><br />
+        <strong>Ingangsdatum:</strong> 5 augustus 2026
+      </div>
+
+      <p>SortIt gebruikt Firebase Authentication voor accounts en Firebase Realtime Database om appgegevens per ingelogde gebruiker op te slaan.</p>
+
+      <h2>Account- en lijstgegevens</h2>
+      <p>SortIt verwerkt het Firebase-account-ID, de naam, het e-mailadres en de inhoud van boodschappenlijsten. Hieronder vallen onder meer product- en lijst-ID’s, productnamen, categorieën, statussen, notities, personen, gekozen supermarkten, tijdstippen en producthistorie. Een gekozen afbeelding voor een Custom-winkel wordt eveneens binnen het account opgeslagen.</p>
+      <p>Productacties worden als historie bewaard wanneer een zichtbaar product of een zichtbare lijst wordt verwijderd. Deze gegevens worden niet verkocht. Firebase verwerkt online gegevens als technische dienstverlener van SortIt.</p>
+
+      <h2>Optionele winkelherkenning</h2>
+      <p>De instelling <strong>Winkelbezoek herkennen</strong> staat standaard uit. Bij inschakelen vraagt SortIt toestemming voor locatiegebruik terwijl de app geopend is. SortIt gebruikt geen achtergrondlocatie.</p>
+      <p>GPS-coördinaten worden lokaal gebruikt voor een controle binnen 150 meter en om een leesbaar adres te bepalen. GPS-coördinaten worden niet naar Firebase gestuurd. Na <strong>Ja</strong> kan Firebase de gekozen winkelnaam, het gevonden adres, het antwoord, het antwoordtijdstip, de straal en een technisch bevestigings-ID ontvangen.</p>
+      <p>De winkelnaam, het adres, de bevestigingstijd en het bevestigings-ID kunnen maximaal één uur worden gekoppeld aan afgevinkte producten op dezelfde lijst en bij dezelfde winkel. Deze gegevens kunnen bij het actuele product en in <code>productArchive</code> staan. Bij <strong>Nee</strong> wordt geen adres gekoppeld.</p>
+      <p>SortIt bewaart lokaal maximaal twintig recente locatieantwoorden voor de herhaalcontrole. Uitschakelen van de functie verwijdert deze lokale antwoordposities.</p>
+
+      <h2>Productcategorisatie</h2>
+      <p>Producten worden lokaal met ingebouwde regels ingedeeld. Productnamen worden hiervoor niet naar een externe AI-dienst gestuurd.</p>
+
+      <h2>Beveiliging en bewaartermijnen</h2>
+      <p>Gegevens worden tijdens transport versleuteld en Firebase-toegang hoort per ingelogde gebruiker te worden afgeschermd. Accountgegevens, lijsten en producthistorie blijven bewaard zolang het SortIt-account bestaat. Lokale voorkeuren en tijdelijke synchronisatiegegevens blijven op het apparaat totdat de gebruiker ze uitschakelt, het account verwijdert of de appgegevens wist.</p>
+
+      <h2>Keuzes, inzage en verwijdering</h2>
+      <p>De gebruiker kan winkelherkenning altijd uitschakelen. Via <strong>Mijn profiel → Verwijder account</strong> kunnen het account en alle gekoppelde SortIt-data definitief worden verwijderd.</p>
+      <p>Wie geen toegang meer heeft tot de app kan de stappen volgen op de <a href="delete-account.html">openbare verwijderpagina</a>. Geldige handmatige verzoeken worden binnen dertig dagen afgehandeld. Voor privacy-, inzage- of correctieverzoeken kun je mailen naar <a href="mailto:ruttencasper@gmail.com">ruttencasper@gmail.com</a>.</p>
+    </main>
+  </body>
+</html>

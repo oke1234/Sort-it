@@ -43,6 +43,8 @@
 > Als je deze functie zelf inschakelt, kan SortIt na een productactie vragen of je bij de gekozen winkel bent. GPS-coördinaten blijven op je apparaat. Alleen na jouw bevestiging kan een leesbaar winkeladres aan relevante boodschappen en de producthistorie worden gekoppeld.
 >
 > SortIt houdt boodschappen doen eenvoudig: één duidelijke lijst, in een logische volgorde.
+>
+> SortIt is onafhankelijk en niet verbonden aan de genoemde supermarktketens.
 
 ## Algemene metadata
 
@@ -61,11 +63,11 @@
 
 | Veld | Waarde |
 |---|---|
-| Contactnaam | NOG INVULLEN |
-| Support-e-mail | NOG INVULLEN |
-| Website | NOG INVULLEN |
-| Privacybeleid-URL | NOG INVULLEN — moet een openbare URL zijn |
-| Accountverwijdering-URL | NOG INVULLEN — verplicht wegens accountregistratie |
+| Contactnaam | Casper Rutten |
+| Support-e-mail | ruttencasper@gmail.com |
+| Website | `https://oke1234.github.io/Sort-it/` |
+| Privacybeleid-URL | `https://oke1234.github.io/Sort-it/privacy-policy.html` |
+| Accountverwijdering-URL | `https://oke1234.github.io/Sort-it/delete-account.html` |
 
 De accountverwijderingspagina moet SortIt of de ontwikkelaarsnaam noemen, duidelijk uitleggen hoe een verwijderverzoek wordt ingediend en vermelden welke accountgegevens worden verwijderd of eventueel tijdelijk worden bewaard.
 
@@ -91,11 +93,11 @@ Deze lijst is een invulvoorstel en moet bij iedere release opnieuw met de app en
 | Naam | Ja | Nee | Accountbeheer en appfunctionaliteit |
 | E-mailadres | Ja | Nee | Accountbeheer en authenticatie |
 | Gebruikers-ID | Ja | Nee | Accountbeheer en synchronisatie |
-| Precieze locatie | Nee naar Firebase; alleen lokale verwerking | Nee | Optionele winkelherkenning |
-| Benaderde locatie | Nee naar Firebase; alleen lokale verwerking | Nee | Optionele winkelherkenning |
-| Adres/winkelgegevens na bevestiging | Ja, optioneel | Nee | Appfunctionaliteit en producthistorie |
-| Door gebruikers ingevoerde boodschappen en notities | Ja | Nee | Appfunctionaliteit en synchronisatie |
-| Door gebruikers gekozen winkelafbeelding | Ja, wanneer gebruikt | Nee | Eigen winkel instellen |
+| Precieze locatie | Ja, optioneel; alleen bevestigd leesbaar winkeladres gaat naar Firebase | Nee | Appfunctionaliteit en producthistorie |
+| Benaderde locatie | Alleen lokale toegang; niet verzameld | Nee | Lokale optionele winkelherkenning |
+| Andere door gebruikers gegenereerde content | Ja | Nee | Boodschappen, lijstnamen, notities, personen en Custom-winkels |
+| Andere acties | Ja | Nee | Afvinken en producthistorie |
+| Foto's | Ja, optioneel | Nee | Door de gebruiker gekozen Custom-winkelafbeelding |
 
 Firebase verwerkt gegevens als dienstverlener voor SortIt. Dit is normaal gesproken geen “delen” binnen de Data safety-definitie, mits het gebruik onder de toepasselijke uitzondering voor dienstverleners valt.
 
@@ -103,9 +105,9 @@ Firebase verwerkt gegevens als dienstverlener voor SortIt. Dit is normaal gespro
 
 | Onderdeel | Status | Benodigd |
 |---|---|---|
-| App-icoon | Aanwezig in `assets/icon.png` | Controleer 512 × 512 px en maximaal 1 MB |
-| Functieafbeelding | NOG MAKEN | 1024 × 500 px, PNG of JPEG |
-| Telefoonscreenshots | NOG MAKEN | Minimaal 2; bij voorkeur 4–8 |
+| App-icoon | Klaar: `assets/Android-Icon.png` | 512 × 512 px, minder dan 1 MB |
+| Functieafbeelding | Klaar: `assets/Andriod V2 Banner.png` | 1024 × 500 px, PNG |
+| Telefoonscreenshots | 3 echte SortIt-opnamen aanwezig als `assets/Screenshot_*.png` | Alle drie zijn 1080 × 2400 px; opnieuw opnemen na deze UI-wijzigingen |
 | 7-inch tabletscreenshots | NOG MAKEN | Alleen indien tabletweergave wordt gepubliceerd |
 | 10-inch tabletscreenshots | NOG MAKEN | Alleen indien tabletweergave wordt gepubliceerd |
 
@@ -120,9 +122,7 @@ Firebase verwerkt gegevens als dienstverlener voor SortIt. Dit is normaal gespro
 
 ## Openstaande publicatiepunten
 
-- Voeg een werkende accountverwijderingsfunctie of duidelijke verwijderroute in de app toe.
-- Publiceer een externe accountverwijderingspagina en vul de URL in.
-- Publiceer het privacybeleid op een openbare, niet-bewerkbare webpagina.
-- Vul ontwikkelaarsnaam, support-e-mailadres, ingangsdatum en bewaartermijnen in.
+- Schakel GitHub Pages in met de map `/docs` en controleer daarna alle drie openbare URL's.
+- Publiceer de bijgewerkte Realtime Database-regels met ondersteuning voor volledige accountverwijdering.
 - Controleer de Data safety-antwoorden ook tegen de definitieve Firebase-configuratie en alle SDK's in de releasebuild.
-- Maak de functieafbeelding en screenshots zonder tijdelijke of testgegevens.
+- Neem de drie SortIt-screenshots opnieuw op na deze releasewijzigingen: gebruik de neutrale winkeliconen, toon de nieuwe accountverwijdering en vermijd een zichtbaar demo-e-mailadres of geopend toetsenbord.

@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid && !newData.exists() && data.child('accountDeletionRequested').val() === true",
+        "accountDeletionRequested": {
+          ".write": "$uid === auth.uid && (newData.val() === true || !newData.exists())"
+        },
+        "shoppingList": {
+          ".write": "$uid === auth.uid"
+        },
+        "productArchive": {
+          "$eventId": {
+            ".write": "$uid === auth.uid && !data.exists() && newData.exists()"
+          }
+        },
+        "storeConfirmations": {
+          "$confirmationId": {
+            ".write": "$uid === auth.uid && !data.exists() && newData.exists()"
+          }
+        }
+      }
+    }
+  }
+}
