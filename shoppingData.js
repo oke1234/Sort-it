@@ -16,61 +16,73 @@ export const stores = [
   {
     id: "lidl",
     name: "Lidl",
+    logo: require("./assets/logos/lidl.png"),
     countryCodes: ["nl", "de"],
   },
   {
     id: "jumbo",
     name: "Jumbo",
+    logo: require("./assets/logos/jumbo.png"),
     countryCodes: ["nl"],
   },
   {
     id: "ah",
     name: "Albert Heijn",
+    logo: require("./assets/logos/albertheijn.png"),
     countryCodes: ["nl"],
   },
   {
     id: "plus",
     name: "Plus",
+    logo: require("./assets/logos/plus.png"),
     countryCodes: ["nl"],
   },
   {
     id: "aldi",
     name: "Aldi",
+    logo: require("./assets/logos/aldi.png"),
     countryCodes: ["nl", "be", "de"],
   },
   {
     id: "spar",
     name: "Spar",
+    logo: require("./assets/logos/spar.png"),
     countryCodes: ["nl"],
   },
   {
     id: "colruyt",
     name: "Colruyt",
+    logo: require("./assets/logos/colruyt.png"),
     countryCodes: ["be"],
   },
   {
     id: "delhaize",
     name: "Delhaize",
+    logo: require("./assets/logos/delhaize.png"),
     countryCodes: ["be"],
   },
   {
     id: "carrefour",
     name: "Carrefour",
+    logo: require("./assets/logos/carrefour.png"),
     countryCodes: ["be"],
   },
   {
     id: "edeka",
     name: "Edeka",
+    logo: require("./assets/logos/edeka.png"),
     countryCodes: ["de"],
   },
   {
     id: "rewe",
     name: "Rewe",
+    logo: require("./assets/logos/rewe.png"),
     countryCodes: ["de"],
   },
   {
     id: "kaufland",
     name: "Kaufland",
+    logo: require("./assets/logos/kaufland.png"),
     countryCodes: ["de"],
   },
 ];

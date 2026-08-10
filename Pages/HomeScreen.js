@@ -106,12 +106,13 @@ const createDefaultList = ({
 const getUserListsKey = (userId) =>
   `${LOCAL_LISTS_KEY}:${userId}`;
 
-const getStoreLogoSource = (store) =>
-  store?.isCustom
-    ? {
-        uri: store.logoUri,
-      }
-    : store?.logo;
+const getStoreLogoSource = (store) => {
+  if (store?.isCustom) {
+    return store.logoUri ? { uri: store.logoUri } : null;
+  }
+
+  return store?.logo ?? null;
+};
 
 const sanitizeItemLocation = (location) => {
   if (!location || typeof location !== "object") return null;
@@ -248,7 +249,7 @@ const normalizeCustomStores = (savedStores) =>
         )
       );
 
-      if (!name || !logoUri) {
+      if (!name) {
         return null;
       }
 
@@ -2219,14 +2220,6 @@ export default function App() {
       return;
     }
 
-    if (!customStoreLogoUri) {
-      Alert.alert(
-        "Afbeelding ontbreekt",
-        "Kies een afbeelding voor je Custom-winkel."
-      );
-      return;
-    }
-
     const storeNameExists = allKnownStores.some(
       (store) =>
         store.name.toLowerCase() ===
@@ -2244,7 +2237,9 @@ export default function App() {
     const customStore = {
       id: createId("custom-store-"),
       name: cleanedName,
-      logoUri: customStoreLogoUri,
+      ...(customStoreLogoUri
+        ? { logoUri: customStoreLogoUri }
+        : {}),
       categories: [...orderedCustomStoreCategories],
       isCustom: true,
       createdAt: Date.now(),
@@ -3853,7 +3848,7 @@ export default function App() {
                     Custom winkel
                   </Text>
                   <Text style={styles.addCustomStoreText}>
-                    Eigen naam, afbeelding en volgorde
+                    Eigen naam, optionele afbeelding en volgorde
                   </Text>
                 </View>
                 <Ionicons
@@ -3912,8 +3907,9 @@ export default function App() {
               </View>
 
               <Text style={styles.customStoreDescription}>
-                Kies een afbeelding en zet de categorieën in
-                de volgorde waarin je door de winkel loopt.
+                Voeg eventueel een afbeelding toe en zet de
+                categorieën in de volgorde waarin je door de
+                winkel loopt.
               </Text>
 
               <ScrollView
@@ -3925,7 +3921,7 @@ export default function App() {
                 keyboardShouldPersistTaps="handled"
               >
                 <Text style={styles.customStoreFieldLabel}>
-                  Afbeelding
+                  Afbeelding (optioneel)
                 </Text>
 
                 <TouchableOpacity
@@ -4112,14 +4108,12 @@ export default function App() {
                   styles.saveButton,
                   styles.customStoreSaveButton,
                   (!customStoreName.trim() ||
-                    !customStoreLogoUri ||
                     isPickingStoreLogo) &&
                     styles.saveButtonDisabled,
                 ]}
                 onPress={createCustomStore}
                 disabled={
                   !customStoreName.trim() ||
-                  !customStoreLogoUri ||
                   isPickingStoreLogo
                 }
                 activeOpacity={0.8}
