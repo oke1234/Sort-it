@@ -449,6 +449,250 @@ export const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
+  premiumTeaser: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 13,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#F0D99E",
+    borderRadius: 17,
+    backgroundColor: "#FFF5DD",
+  },
+
+  premiumTeaserIcon: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 13,
+    backgroundColor: "#D89A27",
+  },
+
+  premiumTeaserCopy: {
+    flex: 1,
+    marginHorizontal: 11,
+  },
+
+  premiumTeaserTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  premiumTeaserText: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
+    color: "#8A651B",
+  },
+
+  premiumConsentCard: {
+    minHeight: 68,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 13,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#BFDCC8",
+    borderRadius: 17,
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  premiumConsentText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: COLORS.primaryDark,
+  },
+
+  premiumAssistant: {
+    marginTop: 4,
+    marginBottom: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#C9DCCF",
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+  },
+
+  premiumAssistantHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  premiumAssistantIcon: {
+    width: 37,
+    height: 37,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+  },
+
+  premiumAssistantCopy: {
+    flex: 1,
+    marginHorizontal: 10,
+  },
+
+  premiumAssistantTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  premiumAssistantSubtitle: {
+    marginTop: 1,
+    fontSize: 10,
+    lineHeight: 14,
+    color: COLORS.textSoft,
+  },
+
+  premiumGenerateButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  premiumOfflineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    padding: 8,
+    borderRadius: 10,
+    backgroundColor: "#F0F3F1",
+  },
+
+  premiumOfflineText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.textSoft,
+  },
+
+  premiumLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 52,
+    marginTop: 8,
+  },
+
+  premiumLoadingText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textSoft,
+  },
+
+  premiumSuggestion: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 9,
+    paddingLeft: 11,
+    paddingRight: 7,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceSoft,
+  },
+
+  premiumSuggestionCopy: {
+    flex: 1,
+    marginRight: 5,
+  },
+
+  premiumSuggestionName: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  premiumSuggestionReason: {
+    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 14,
+    color: COLORS.textSoft,
+  },
+
+  premiumDismissButton: {
+    width: 31,
+    height: 35,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  premiumAddSuggestion: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 11,
+    backgroundColor: COLORS.primary,
+  },
+
+  premiumMealIdea: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 9,
+    padding: 10,
+    borderRadius: 13,
+    backgroundColor: "#FFF5DD",
+  },
+
+  premiumMealCopy: {
+    flex: 1,
+  },
+
+  premiumMealTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#705114",
+  },
+
+  premiumMealText: {
+    marginTop: 2,
+    fontSize: 10,
+    lineHeight: 14,
+    color: "#8A651B",
+  },
+
+  premiumEmptyText: {
+    marginTop: 11,
+    fontSize: 11,
+    lineHeight: 16,
+    color: COLORS.textSoft,
+    textAlign: "center",
+  },
+
+  premiumAddAllButton: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 10,
+    borderRadius: 13,
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  premiumAddAllText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: COLORS.primaryDark,
+  },
+
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",

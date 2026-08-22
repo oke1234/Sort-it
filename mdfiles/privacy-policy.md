@@ -2,7 +2,7 @@
 
 **Verantwoordelijke:** Casper Rutten<br>
 **Privacycontact:** ruttencasper@gmail.com<br>
-**Ingangsdatum:** 5 augustus 2026
+**Laatst bijgewerkt:** 14 augustus 2026
 
 SortIt gebruikt Firebase Authentication voor accounts en Firebase Realtime Database om appgegevens per ingelogde gebruiker op te slaan.
 
@@ -39,7 +39,17 @@ Het uitschakelen van de instelling stopt nieuwe locatieopvragingen en verwijdert
 
 ## Productcategorisatie
 
-Producten worden lokaal op het apparaat ingedeeld met ingebouwde productregels. Productnamen worden hiervoor niet naar een externe AI-dienst gestuurd.
+Producten worden lokaal op het apparaat ingedeeld met ingebouwde productregels. Productnamen worden voor deze gratis categorisatiefunctie niet naar een externe AI-dienst gestuurd.
+
+## SortIt Premium, profilering en AI
+
+SortIt Premium is een optioneel betaald abonnement. De betaling en abonnementsstatus worden verwerkt door Apple App Store of Google Play en RevenueCat. SortIt ontvangt geen volledige betaalkaartgegevens. Voor abonnementsbeheer kunnen account-ID, product-ID, store, aankoopstatus en vervaldatum worden verwerkt.
+
+Na afzonderlijke, intrekbare toestemming kan SortIt de eigen afgeronde producthistorie analyseren om een kook- en boodschappengedragsprofiel te maken. Dit profiel kan herhaalritmes, veelgekochte categorieën, samen gekochte producten, winkelvoorkeur en gemiddelde lijstgrootte bevatten. SortIt leidt geen gezondheid, religie, etniciteit, zwangerschap of andere gevoelige kenmerken uit aankopen af. Dieetwensen, allergieën en uitgesloten ingrediënten worden alleen gebruikt wanneer de gebruiker ze zelf invult.
+
+Voor slimme lijstvoorstellen kan een beperkte selectie van genormaliseerde productnamen, actuele lijstproducten, geaggregeerde profielsignalen en zelf ingevulde voorkeuren via een beveiligde SortIt-server aan een AI-dienst worden verstrekt. E-mailadres, Firebase-account-ID, adressen, GPS-coördinaten en de volledige ruwe producthistorie worden niet aan het AI-model verstrekt. Modeluitvoer wordt gecontroleerd en verandert nooit automatisch een boodschappenlijst; de gebruiker kiest zelf welke suggesties worden toegevoegd.
+
+Suggesties worden technisch maximaal dertig dagen bewaard en feedback maximaal twaalf maanden, tenzij een kortere wettelijke of operationele termijn geldt. De gebruiker kan personalisatie in Premium uitschakelen; dan worden het afgeleide profiel, suggesties en feedback verwijderd. De gewone boodschappenlijsten en bestaande producthistorie blijven behouden totdat de gebruiker het account verwijdert.
 
 ## Beveiliging en toegang
 

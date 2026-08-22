@@ -11,6 +11,8 @@ import HomeScreen from "./Pages/HomeScreen";
 import LoginScreen from "./Pages/LoginScreen";
 import CreateAccountScreen from "./Pages/CreateAccount";
 import ProfielScreen from "./Pages/ProfielScreen"
+import PremiumScreen from "./Pages/PremiumScreen";
+import { PremiumProvider } from "./PremiumContext";
 
 const Stack = createNativeStackNavigator();
 
@@ -39,8 +41,9 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <PremiumProvider user={user}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
           <>
             <Stack.Screen 
@@ -51,6 +54,10 @@ export default function App() {
             <Stack.Screen 
               name="Profiel" 
               component={ProfielScreen} 
+            />
+            <Stack.Screen
+              name="Premium"
+              component={PremiumScreen}
             />
           </>
         ) : (
@@ -63,7 +70,8 @@ export default function App() {
             />
           </>
         )}
-      </Stack.Navigator>
-    </NavigationContainer>
+        </Stack.Navigator>
+      </NavigationContainer>
+    </PremiumProvider>
   );
 }

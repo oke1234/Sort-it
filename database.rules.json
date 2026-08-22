@@ -19,8 +19,20 @@
           "$confirmationId": {
             ".write": "$uid === auth.uid && !data.exists() && newData.exists()"
           }
+        },
+        "premium": {
+          ".read": "$uid === auth.uid",
+          ".write": false
+        },
+        "personalization": {
+          ".read": "$uid === auth.uid",
+          ".write": false
         }
       }
+    },
+    "subscriptionWebhookEvents": {
+      ".read": false,
+      ".write": false
     }
   }
 }

@@ -61,6 +61,7 @@ import {
 } from "../shoppingData";
 
 import { getCategory } from "../categoryService";
+import PremiumAssistant from "../PremiumAssistant";
 import {
   getStorePresenceCandidate,
   getRecentConfirmedStoreLocation,
@@ -1931,8 +1932,8 @@ export default function App() {
     setItemModalVisible(false);
   };
 
-  const addItem = async () => {
-    const cleanedName = newItem.trim();
+  const addProductByName = async (productName, { closeModal = false } = {}) => {
+    const cleanedName = String(productName ?? "").trim();
     const user = auth.currentUser;
 
     if (!cleanedName) return;
@@ -1986,7 +1987,7 @@ export default function App() {
         }
       );
 
-      closeItemModal();
+      if (closeModal) closeItemModal();
       scheduleStorePresenceCheck(
         user.uid,
         selectedStore,
@@ -2002,7 +2003,12 @@ export default function App() {
         "Fout",
         "Het product kon niet worden toegevoegd."
       );
+      throw error;
     }
+  };
+
+  const addItem = async () => {
+    await addProductByName(newItem, { closeModal: true });
   };
 
   const toggleItem = async (id) => {
@@ -3038,6 +3044,14 @@ export default function App() {
             : activeList.name}
         </Text>
       </View>
+
+      <PremiumAssistant
+        items={items}
+        listId={activeListId}
+        isOnline={isOnline}
+        navigation={navigation}
+        onAddProduct={(name) => addProductByName(name)}
+      />
     </>
   );
 

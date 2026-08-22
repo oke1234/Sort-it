@@ -32,6 +32,7 @@ import { ref, remove, set } from "firebase/database";
 import * as Location from "expo-location";
 
 import { auth, db } from "../firebaseConfig";
+import { deletePremiumCustomerData } from "../premiumService";
 import {
   beginAccountDeletion,
   endAccountDeletion,
@@ -500,6 +501,7 @@ export default function ProfielScreen({ navigation }) {
         credential
       );
       await waitForAccountSyncIdle(userId);
+      await deletePremiumCustomerData();
 
       const deletionFlagRef = ref(
         db,
@@ -600,6 +602,26 @@ export default function ProfielScreen({ navigation }) {
               {currentEmail || "Geen e-mailadres"}
             </Text>
           </View>
+
+          <Text style={styles.sectionTitle}>SortIt Premium</Text>
+          <TouchableOpacity
+            style={styles.premiumCard}
+            onPress={() => navigation.navigate("Premium")}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel="SortIt Premium bekijken"
+          >
+            <View style={styles.premiumIcon}>
+              <Ionicons name="diamond-outline" size={25} color="#D89A27" />
+            </View>
+            <View style={styles.premiumCopy}>
+              <Text style={styles.premiumTitle}>Kookprofiel en slimme lijsten</Text>
+              <Text style={styles.premiumText}>
+                Ontdek Premium voor €3 per maand en beheer je abonnement en voorkeuren.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#8A651B" />
+          </TouchableOpacity>
 
           <Text style={styles.sectionTitle}>Taal</Text>
           <View style={[styles.card, styles.languageCard]}>
@@ -1269,6 +1291,40 @@ const styles = StyleSheet.create({
   languageOptionTextSelected: {
     color: COLORS.primaryDark,
     fontWeight: "900",
+  },
+  premiumCard: {
+    minHeight: 80,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F0D99E",
+    borderRadius: 20,
+    backgroundColor: "#FFF5DD",
+  },
+  premiumIcon: {
+    width: 49,
+    height: 49,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+  },
+  premiumCopy: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  premiumTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+  premiumText: {
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#8A651B",
   },
   countryOptions: {
     marginTop: 15,
