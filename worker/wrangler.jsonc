@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sortit-premium-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-23",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "FIREBASE_API_KEY": "AIzaSyCySR4p9oeWBOFSVUBT8C0cIa4VbJsvTik",
+    "FIREBASE_DATABASE_URL": "https://sortit-f8a73-default-rtdb.europe-west1.firebasedatabase.app",
+    "OPENAI_MODEL": "gpt-5-mini"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sortit-premium",
+      "database_id": "e775d94d-c1ba-431a-9604-72da84ce8eef",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  }
+}

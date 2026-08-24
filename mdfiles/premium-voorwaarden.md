@@ -2,7 +2,7 @@
 
 **Aanbieder:** SortIt · Casper Rutten  
 **Contact:** ruttencasper@gmail.com  
-**Laatst bijgewerkt:** 14 augustus 2026
+**Laatst bijgewerkt:** 23 augustus 2026
 
 ## Gratis app en Premium
 
@@ -10,11 +10,11 @@ De bestaande handmatige boodschappenlijstfuncties van SortIt blijven gratis. Sor
 
 ## Prijs en facturering
 
-SortIt Premium kost in de europrijsregio's € 3,00 per maand. De exacte lokale prijs, valuta en eventuele belasting staan vóór bevestiging in Apple App Store of Google Play. De appstore int de betaling; SortIt ontvangt geen volledige betaalkaartgegevens.
+SortIt Premium kost in de europrijsregio's € 3,99 per maand, € 39,99 per jaar of € 99,99 voor een eenmalige lifetime-aankoop. De exacte lokale prijs, valuta en eventuele belasting staan vóór bevestiging in Apple App Store of Google Play. De appstore int de betaling; SortIt ontvangt geen volledige betaalkaartgegevens.
 
 ## Automatische verlenging
 
-Het abonnement wordt automatisch per maand verlengd totdat het via de appstore wordt opgezegd. Opzeggen voorkomt een volgende verlenging; toegang blijft normaal beschikbaar tot het einde van de betaalde periode. De voorwaarden voor opzegging, terugbetaling, respijtperiode en prijswijziging van Apple of Google zijn eveneens van toepassing.
+Een maand- of jaarabonnement wordt automatisch met dezelfde periode verlengd totdat het via de appstore wordt opgezegd. Opzeggen voorkomt een volgende verlenging; toegang blijft normaal beschikbaar tot het einde van de betaalde periode. De lifetime-aankoop wordt niet automatisch verlengd. De voorwaarden voor opzegging, terugbetaling, respijtperiode en prijswijziging van Apple of Google zijn eveneens van toepassing.
 
 ## Beheren, herstellen en opzeggen
 

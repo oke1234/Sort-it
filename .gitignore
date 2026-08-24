@@ -3,6 +3,7 @@
 # dependencies
 node_modules/
 sleutelfile.json
+credentials.json
 
 # Expo
 .expo/
@@ -42,3 +43,7 @@ yarn-error.*
 /android
 
 .env
+
+# Cloudflare Worker local state and secrets
+worker/.wrangler/
+worker/.dev.vars

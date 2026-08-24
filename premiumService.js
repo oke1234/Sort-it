@@ -1,8 +1,7 @@
 import { Platform } from "react-native";
 import Purchases, { LOG_LEVEL } from "react-native-purchases";
 import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
-import { httpsCallable } from "firebase/functions";
-import { auth, functions } from "./firebaseConfig";
+import { auth } from "./firebaseConfig";
 
 // Keep this identifier in sync with RevenueCat and the Firebase Functions backend.
 // "SORTIT Pro" is the customer-facing entitlement name in the dashboard.
@@ -128,29 +127,56 @@ export const disconnectPurchasesUser = async () => {
 export const hasPremiumEntitlement = (customerInfo) =>
   Boolean(customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID]);
 
-const callFunction = async (name, data) => {
+const getPremiumApiUrl = () =>
+  String(process.env.EXPO_PUBLIC_PREMIUM_API_URL ?? "").replace(/\/$/, "");
+
+export const isPremiumApiConfigured = () => Boolean(getPremiumApiUrl());
+
+const callPremiumApi = async (name, data = {}) => {
   if (!auth.currentUser) throw new Error("not-authenticated");
-  const callable = httpsCallable(functions, name);
-  const result = await callable(data);
-  return result.data;
+  const apiUrl = getPremiumApiUrl();
+  if (!apiUrl) throw new Error("premium-api-not-configured");
+  const idToken = await auth.currentUser.getIdToken();
+  const response = await fetch(`${apiUrl}/api/${encodeURIComponent(name)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data ?? {}),
+  });
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // A non-JSON upstream response is surfaced as a temporary service error.
+  }
+  if (!response.ok || payload?.error) {
+    const error = new Error(
+      payload?.error?.message ?? "De Premium-dienst is tijdelijk niet bereikbaar."
+    );
+    error.code = payload?.error?.code ?? `http-${response.status}`;
+    throw error;
+  }
+  return payload?.data;
 };
 
-export const fetchPremiumState = () => callFunction("getPremiumState");
-export const refreshServerEntitlement = () => callFunction("refreshEntitlement");
+export const fetchPremiumState = () => callPremiumApi("getPremiumState");
+export const refreshServerEntitlement = () => callPremiumApi("refreshEntitlement");
 export const setPersonalizationConsent = (granted) =>
-  callFunction("setPersonalization", { granted });
+  callPremiumApi("setPersonalization", { granted });
 export const savePremiumPreferences = (preferences) =>
-  callFunction("savePremiumPreferences", preferences);
-export const rebuildCookingProfile = () => callFunction("rebuildCookingProfile");
+  callPremiumApi("savePremiumPreferences", preferences);
+export const rebuildCookingProfile = () => callPremiumApi("rebuildCookingProfile");
 export const generatePremiumSuggestions = ({ currentItems, mode = "contextual" }) =>
-  callFunction("generateSuggestions", { currentItems, mode });
+  callPremiumApi("generateSuggestions", { currentItems, mode });
 export const recordSuggestionFeedback = ({ suggestionSetId, suggestionId, action }) =>
-  callFunction("recordSuggestionFeedback", {
+  callPremiumApi("recordSuggestionFeedback", {
     suggestionSetId,
     suggestionId,
     action,
   });
-export const deletePremiumCustomerData = () => callFunction("deletePremiumCustomer");
+export const deletePremiumCustomerData = () => callPremiumApi("deletePremiumCustomer");
 
 export const getPremiumErrorMessage = (error) => {
   if (error?.userCancelled || error?.code === "1") return "Aankoop geannuleerd.";
@@ -162,6 +188,9 @@ export const getPremiumErrorMessage = (error) => {
   }
   if (error?.message === "paywall-presentation-failed") {
     return "De Premium-pagina kon niet worden geopend. Probeer het opnieuw.";
+  }
+  if (error?.message === "premium-api-not-configured") {
+    return "De beveiligde Premium-dienst is nog niet aan deze build gekoppeld.";
   }
   if (error?.message === "not-authenticated") return "Log opnieuw in om door te gaan.";
   const code = String(error?.code ?? "");

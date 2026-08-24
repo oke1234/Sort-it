@@ -7,7 +7,6 @@ import {
 } from "firebase/auth";
 
 import { getDatabase } from "firebase/database";
-import { getFunctions } from "firebase/functions";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -32,6 +31,5 @@ const auth = initializeAuth(app, {
 });
 
 const db = getDatabase(app);
-const functions = getFunctions(app, "europe-west1");
 
-export { auth, db, functions };
+export { auth, db };

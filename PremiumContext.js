@@ -6,8 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { onValue, ref } from "firebase/database";
-import { auth, db } from "./firebaseConfig";
+import { auth } from "./firebaseConfig";
 import {
   addCustomerInfoListener,
   configurePurchasesForUser,
@@ -97,19 +96,27 @@ export function PremiumProvider({ user, children }) {
           ]);
           if (!active) return;
           setOffering(premiumOffering);
+          const premiumActive = hasPremiumEntitlement(customerInfo);
           applyState({
             customerInfo,
-            premiumActive: hasPremiumEntitlement(customerInfo),
+            premiumActive,
           });
+          if (premiumActive) {
+            await refreshServerEntitlement().then(applyState).catch((error) =>
+              console.warn("Premiumstatus synchroniseren mislukt:", error)
+            );
+          }
           const handleCustomerInfo = (nextCustomerInfo) => {
             if (!active) return;
             applyState({
               customerInfo: nextCustomerInfo,
               premiumActive: hasPremiumEntitlement(nextCustomerInfo),
             });
-            refreshServerEntitlement().catch((error) =>
-              console.warn("Premiumstatus synchroniseren mislukt:", error)
-            );
+            refreshServerEntitlement()
+              .then((next) => active && applyState(next))
+              .catch((error) =>
+                console.warn("Premiumstatus synchroniseren mislukt:", error)
+              );
           };
           stopCustomerInfo = addCustomerInfoListener(handleCustomerInfo);
         }
@@ -127,36 +134,9 @@ export function PremiumProvider({ user, children }) {
 
     initialize();
 
-    const stopPremium = onValue(
-      ref(db, `users/${user.uid}/premium/entitlement`),
-      (snapshot) => {
-        const entitlement = snapshot.val();
-        const expiresAt = Number(entitlement?.expiresAt);
-        applyState({
-          entitlement,
-          premiumActive:
-            entitlement?.active === true &&
-            (!Number.isFinite(expiresAt) || expiresAt > Date.now()),
-        });
-      }
-    );
-    const stopPersonalization = onValue(
-      ref(db, `users/${user.uid}/personalization`),
-      (snapshot) => {
-        const personalization = snapshot.val() ?? {};
-        applyState({
-          consent: personalization.consent ?? { granted: false },
-          preferences: personalization.preferences ?? DEFAULT_PREFERENCES,
-          profile: personalization.profile ?? null,
-        });
-      }
-    );
-
     return () => {
       active = false;
       stopCustomerInfo();
-      stopPremium();
-      stopPersonalization();
     };
   }, [applyState, reload, user?.uid]);
 

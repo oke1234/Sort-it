@@ -34,8 +34,8 @@ Ga in RevenueCat naar **Product catalog**.
 
 1. Maak in de Test Store drie producten:
    - `lifetime`: one-time/lifetime;
-   - `yearly`: subscription van één jaar;
-   - `monthly`: subscription van één maand.
+   - `yearly_3999`: subscription van één jaar voor USD 39.99;
+   - `monthly_399`: subscription van één maand voor USD 3.99.
 2. Maak één entitlement:
    - identifier: `premium_ai`;
    - zichtbare naam/omschrijving: `SORTIT Pro`.
@@ -43,8 +43,8 @@ Ga in RevenueCat naar **Product catalog**.
 4. Maak Offering `default` en markeer die als de huidige/default Offering.
 5. Voeg packages toe:
    - Lifetime (`$rc_lifetime`) → `lifetime`;
-   - Annual (`$rc_annual`) → `yearly`;
-   - Monthly (`$rc_monthly`) → `monthly`.
+   - Annual (`$rc_annual`) → `yearly_3999`;
+   - Monthly (`$rc_monthly`) → `monthly_399`.
 6. Maak in RevenueCat bij **Paywalls** een paywall voor Offering `default`. Kies een
    template dat drie packages ondersteunt, toon een sluitknop, restore, privacybeleid
    en voorwaarden en publiceer de paywall.
@@ -64,11 +64,11 @@ aankoopstatus en herstelopties zien.
 
 Maak dezelfde logische producten in beide stores. Product-ID's zijn:
 
-| Product | Apple | Google | Type |
-| --- | --- | --- | --- |
-| Lifetime | `lifetime` | `lifetime` | non-consumable / one-time |
-| Yearly | `yearly` | `yearly` | auto-renewable / subscription base plan |
-| Monthly | `monthly` | `monthly` | auto-renewable / subscription base plan |
+| Product | Apple | Google | Europrijs | Type |
+| --- | --- | --- | --- | --- |
+| Lifetime | `lifetime` | `lifetime` | € 99,99 | non-consumable / one-time |
+| Yearly | `yearly` | `yearly` | € 39,99 | auto-renewable / subscription base plan |
+| Monthly | `monthly` | `monthly` | € 3,99 | auto-renewable / subscription base plan |
 
 Voor Apple horen Monthly en Yearly bij dezelfde subscription group. Configureer in
 Google Play de juiste subscription/base plans. Importeer daarna de storeproducten in
@@ -84,31 +84,61 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_...
 Publieke SDK-sleutels mogen in de app staan. RevenueCat secret keys en webhooksecrets
 mogen dat nooit.
 
-## 5. Firebase Functions en webhook
+Voor de Apple-koppeling in RevenueCat is daarnaast een App Store Connect In-App
+Purchase-sleutel (`SubscriptionKey_*.p8`) nodig. Alleen een Account Holder of Admin
+met de juiste toegang kan deze sleutel aanmaken. Voor echte Google Play-verkopen moet
+eerst een Google Payments/merchant-profiel aan de Play Console-account zijn gekoppeld;
+pas daarna kunnen de subscriptions, base plans en eenmalige aankoop worden aangemaakt.
 
-Zet secrets uitsluitend in Firebase Secret Manager:
+## 5. Cloudflare Worker Free en webhook
+
+De betaalde Firebase Functions-laag wordt niet gebruikt. Firebase blijft op Spark
+voor Authentication en Realtime Database. De beveiligde Premium-API draait als
+Cloudflare Worker met D1-opslag in `worker/`.
+
+De app stuurt voor iedere API-aanroep het Firebase ID-token. De Worker valideert dit
+token bij Firebase, leest de boodschappenhistorie uitsluitend met de rechten van die
+gebruiker en bewaart Premiumstatus, toestemming, profielen en feedback in D1.
+
+Zet secrets uitsluitend als versleutelde Cloudflare Worker-secrets:
 
 ```powershell
-firebase functions:secrets:set OPENAI_API_KEY
-firebase functions:secrets:set REVENUECAT_SECRET_KEY
-firebase functions:secrets:set REVENUECAT_WEBHOOK_SECRET
+cd worker
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put REVENUECAT_SECRET_KEY
+npx wrangler secret put REVENUECAT_WEBHOOK_SECRET
 ```
 
-Deploy backend en regels:
+Maak D1 aan, vul de echte `database_id` in `worker/wrangler.jsonc` in en deploy:
 
 ```powershell
-firebase deploy --only functions,database
+npx wrangler d1 create sortit-premium
+npx wrangler d1 migrations apply sortit-premium --remote
+npx wrangler deploy
 ```
 
-Configureer in RevenueCat een webhook naar de gedeployde HTTPS-functie
-`revenueCatWebhook` met header:
+Zet de gedeployde basis-URL in EAS development en production als:
+
+```text
+EXPO_PUBLIC_PREMIUM_API_URL=https://sortit-premium-api.<account>.workers.dev
+```
+
+Configureer in RevenueCat een webhook naar:
+
+```text
+https://sortit-premium-api.<account>.workers.dev/webhooks/revenuecat
+```
+
+met header:
 
 ```text
 Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>
 ```
 
-Selecteer eerst sandbox én production events tijdens het testen. De webhook schrijft
-alleen events voor `premium_ai` en geïdentificeerde Firebase-gebruikers weg.
+Selecteer eerst sandbox én production events tijdens het testen. De webhook verwerkt
+alleen events voor `premium_ai` en geïdentificeerde Firebase-gebruikers. De oude code
+in `functions/` blijft alleen als referentie en voor de bestaande domeintests; hij staat
+niet meer in `firebase.json` en wordt niet gedeployd.
 
 ## 6. Builds en testen
 
@@ -139,4 +169,5 @@ Test minimaal:
 - Toon herstel, privacybeleid en gebruiksvoorwaarden.
 - Leg in review-notities uit waar Paywall, restore en Customer Center staan.
 - Controleer dat release builds `appl_...`/`goog_...` gebruiken en nooit `test_...`.
-- Gebruik een afzonderlijk OpenAI-project met budgetlimiet; de OpenAI-key blijft server-only.
+- Gebruik een afzonderlijk OpenAI-project met budgetlimiet; de OpenAI-key blijft als
+  Cloudflare-secret server-only.
