@@ -10,6 +10,7 @@ credentials.json
 dist/
 web-build/
 expo-env.d.ts
+.tmp-*/
 
 # Native
 .kotlin/

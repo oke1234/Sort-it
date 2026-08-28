@@ -11,6 +11,39 @@ const PRODUCT_ALIASES = new Map([
   ["eieren", "ei"],
 ]);
 
+const AI_LIST_TEMPLATES = [
+  {
+    tags: ["bbq", "barbecue", "grillen"],
+    label: "je barbecue",
+    products: ["stokbrood", "hamburgers", "kipspiesjes", "paprika", "courgette", "maïs", "salade", "saus", "frisdrank", "servetten"],
+  },
+  {
+    tags: ["ontbijt", "brunch"],
+    label: "je ontbijt",
+    products: ["brood", "eieren", "yoghurt", "havermout", "melk", "kaas", "banaan", "appel", "koffie", "sinaasappelsap"],
+  },
+  {
+    tags: ["feest", "verjaardag", "borrel"],
+    label: "je feestje",
+    products: ["chips", "noten", "kaas", "toastjes", "dip", "olijven", "frisdrank", "sap", "taart", "servetten"],
+  },
+  {
+    tags: ["pasta", "italiaans"],
+    label: "je pastamaaltijd",
+    products: ["pasta", "tomaat", "ui", "knoflook", "paprika", "courgette", "parmezaanse kaas", "salade", "brood"],
+  },
+  {
+    tags: ["gezond", "groente", "salade"],
+    label: "je lichte week",
+    products: ["spinazie", "broccoli", "paprika", "tomaat", "komkommer", "wortel", "kikkererwten", "eieren", "yoghurt", "appel", "banaan"],
+  },
+  {
+    tags: [],
+    label: "je planning",
+    products: ["brood", "melk", "eieren", "kaas", "yoghurt", "pasta", "rijst", "tomaat", "paprika", "broccoli", "appel", "banaan"],
+  },
+];
+
 const normalizeProductName = (value) => {
   const normalized = String(value ?? "")
     .normalize("NFKC")
@@ -232,6 +265,7 @@ const generateDeterministicCandidates = ({
   profile,
   currentItems = [],
   mode = "contextual",
+  goal = "",
   now = Date.now(),
 }) => {
   const existing = new Set(
@@ -244,6 +278,23 @@ const generateDeterministicCandidates = ({
     if (candidates.some((item) => item.normalizedName === normalizedName)) return;
     candidates.push({ ...candidate, normalizedName });
   };
+
+  if (mode === "ai_list") {
+    const normalizedGoal = String(goal).toLocaleLowerCase("nl");
+    const template =
+      AI_LIST_TEMPLATES.find(
+        (item) => item.tags.length && item.tags.some((tag) => normalizedGoal.includes(tag))
+      ) ?? AI_LIST_TEMPLATES[AI_LIST_TEMPLATES.length - 1];
+    template.products.forEach((name) =>
+      addCandidate({
+        name,
+        category: "Overig",
+        reason: `Handig voor ${template.label}.`,
+        confidence: 0.72,
+        sourceSignals: ["ai_list_goal"],
+      })
+    );
+  }
 
   for (const product of profile?.topProducts ?? []) {
     const due = product.nextExpectedAt && product.nextExpectedAt <= now + 2 * 86400000;
@@ -307,7 +358,7 @@ const generateDeterministicCandidates = ({
   }
 
   return {
-    suggestions: candidates.slice(0, mode === "full_list" ? 12 : 5),
+    suggestions: candidates.slice(0, mode === "contextual" ? 5 : 12),
     mealIdeas: mealIdeas.slice(0, 3),
   };
 };

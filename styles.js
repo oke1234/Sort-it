@@ -354,6 +354,8 @@ export const styles = StyleSheet.create({
 
   listTabSelect: {
     minHeight: 37,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
     paddingLeft: 13,
     paddingRight: 8,
@@ -368,6 +370,10 @@ export const styles = StyleSheet.create({
 
   listTabTextSelected: {
     color: "#FFFFFF",
+  },
+
+  aiListTabIcon: {
+    marginRight: 5,
   },
 
   listTabDelete: {
@@ -449,43 +455,89 @@ export const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
+  listTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  aiListTitleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#FFF2CF",
+  },
+
+  profileButtonPro: {
+    borderWidth: 1.5,
+    borderColor: "#D8B45A",
+    backgroundColor: "#FFF8E7",
+  },
+
+  profileProBadge: {
+    position: "absolute",
+    top: -7,
+    right: -8,
+    minWidth: 34,
+    height: 19,
+    paddingHorizontal: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: COLORS.background,
+    backgroundColor: "#B47B18",
+  },
+
+  profileProBadgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    color: "#FFFFFF",
+  },
+
   premiumTeaser: {
-    minHeight: 72,
+    minHeight: 50,
     flexDirection: "row",
     alignItems: "center",
     marginTop: 4,
-    marginBottom: 13,
-    padding: 12,
+    marginBottom: 11,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
     borderWidth: 1,
     borderColor: "#F0D99E",
-    borderRadius: 17,
+    borderRadius: 14,
     backgroundColor: "#FFF5DD",
   },
 
   premiumTeaserIcon: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 13,
+    borderRadius: 11,
     backgroundColor: "#D89A27",
   },
 
   premiumTeaserCopy: {
     flex: 1,
-    marginHorizontal: 11,
+    marginHorizontal: 9,
   },
 
   premiumTeaserTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
     color: COLORS.text,
   },
 
   premiumTeaserText: {
     marginTop: 2,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 14,
     color: "#8A651B",
   },
 
@@ -1016,6 +1068,108 @@ export const styles = StyleSheet.create({
     color: COLORS.text,
     paddingHorizontal: 11,
     paddingVertical: 15,
+  },
+
+  listModeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  listModeOption: {
+    position: "relative",
+    flex: 1,
+    minHeight: 92,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 17,
+    backgroundColor: COLORS.surfaceSoft,
+  },
+
+  listModeOptionSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primarySoft,
+  },
+
+  aiListModeOption: {
+    borderColor: "#E8D39B",
+    backgroundColor: "#FFFBF0",
+  },
+
+  aiListModeOptionSelected: {
+    borderColor: "#D49A28",
+    backgroundColor: "#FFF5DD",
+  },
+
+  listModeIcon: {
+    width: 30,
+    height: 30,
+    marginBottom: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+  },
+
+  aiListModeIcon: {
+    backgroundColor: "#FFF0C5",
+  },
+
+  listModeTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  listModeText: {
+    marginTop: 2,
+    fontSize: 10,
+    color: COLORS.textSoft,
+  },
+
+  aiListLock: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+  },
+
+  aiGoalInput: {
+    borderColor: "#E8D39B",
+    backgroundColor: "#FFFCF5",
+  },
+
+  aiGoalExamples: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 9,
+  },
+
+  aiGoalChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "#FFF2CF",
+  },
+
+  aiGoalChipText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#7A5A19",
+  },
+
+  aiListCreateButton: {
+    backgroundColor: "#B47B18",
+  },
+
+  aiListPrivacyText: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+    fontSize: 10,
+    lineHeight: 14,
+    textAlign: "center",
+    color: COLORS.textSoft,
   },
 
   categoryPreview: {

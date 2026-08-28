@@ -77,6 +77,18 @@ test("stelt nooit een bestaand product opnieuw voor", () => {
   assert.equal(result.suggestions.some((item) => item.normalizedName === "pasta"), false);
 });
 
+test("maakt een bruikbare AI-startlijst op basis van een doel", () => {
+  const result = generateDeterministicCandidates({
+    profile: { topProducts: [], coPurchases: [] },
+    mode: "ai_list",
+    goal: "BBQ voor vrienden",
+    now: NOW,
+  });
+  assert.ok(result.suggestions.length >= 8);
+  assert.ok(result.suggestions.some((item) => item.name === "hamburgers"));
+  assert.ok(result.suggestions.every((item) => item.sourceSignals.includes("ai_list_goal")));
+});
+
 test("geeft bij te weinig historie geen harde profielconclusie", () => {
   const profile = buildCookingProfile(
     [

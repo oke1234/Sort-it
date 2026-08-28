@@ -168,8 +168,8 @@ export const setPersonalizationConsent = (granted) =>
 export const savePremiumPreferences = (preferences) =>
   callPremiumApi("savePremiumPreferences", preferences);
 export const rebuildCookingProfile = () => callPremiumApi("rebuildCookingProfile");
-export const generatePremiumSuggestions = ({ currentItems, mode = "contextual" }) =>
-  callPremiumApi("generateSuggestions", { currentItems, mode });
+export const generatePremiumSuggestions = ({ currentItems, mode = "contextual", goal = "" }) =>
+  callPremiumApi("generateSuggestions", { currentItems, mode, goal });
 export const recordSuggestionFeedback = ({ suggestionSetId, suggestionId, action }) =>
   callPremiumApi("recordSuggestionFeedback", {
     suggestionSetId,

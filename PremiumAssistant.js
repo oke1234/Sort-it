@@ -139,9 +139,7 @@ export default function PremiumAssistant({
   };
 
   const addAll = async () => {
-    const available = (result?.suggestions ?? []).filter(
-      (suggestion, index) => !hiddenIds.has(suggestionId(suggestion, index))
-    );
+    const available = visibleSuggestions;
     if (!available.length) return;
     for (let index = 0; index < available.length; index += 1) {
       await acceptSuggestion(available[index], index);
@@ -157,11 +155,11 @@ export default function PremiumAssistant({
         accessibilityRole="button"
       >
         <View style={styles.premiumTeaserIcon}>
-          <Ionicons name="sparkles" size={19} color="#FFFFFF" />
+          <Ionicons name="sparkles" size={17} color="#FFFFFF" />
         </View>
         <View style={styles.premiumTeaserCopy}>
-          <Text style={styles.premiumTeaserTitle}>Slimme boodschappen met Premium</Text>
-          <Text style={styles.premiumTeaserText}>Kookprofiel en AI-suggesties · €3 per maand</Text>
+          <Text style={styles.premiumTeaserTitle}>Slimme assistent</Text>
+          <Text style={styles.premiumTeaserText}>Ontdek persoonlijke suggesties in SortIt Pro</Text>
         </View>
         <Ionicons name="chevron-forward" size={19} color="#8A651B" />
       </TouchableOpacity>
@@ -184,9 +182,9 @@ export default function PremiumAssistant({
     );
   }
 
-  const visibleSuggestions = (result?.suggestions ?? []).filter(
-    (suggestion, index) => !hiddenIds.has(suggestionId(suggestion, index))
-  );
+  const visibleSuggestions = (result?.suggestions ?? [])
+    .filter((suggestion, index) => !hiddenIds.has(suggestionId(suggestion, index)))
+    .slice(0, 3);
 
   return (
     <View style={styles.premiumAssistant}>
@@ -264,7 +262,7 @@ export default function PremiumAssistant({
         );
       })}
 
-      {(result?.mealIdeas ?? []).map((idea) => (
+      {(result?.mealIdeas ?? []).slice(0, 1).map((idea) => (
         <View style={styles.premiumMealIdea} key={idea.title}>
           <Ionicons name="restaurant-outline" size={17} color="#8A651B" />
           <View style={styles.premiumMealCopy}>

@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Modal,
@@ -62,6 +63,11 @@ import {
 
 import { getCategory } from "../categoryService";
 import PremiumAssistant from "../PremiumAssistant";
+import { usePremium } from "../PremiumContext";
+import {
+  generatePremiumSuggestions,
+  getPremiumErrorMessage,
+} from "../premiumService";
 import {
   getStorePresenceCandidate,
   getRecentConfirmedStoreLocation,
@@ -303,6 +309,8 @@ const normalizeShoppingLists = (data = {}) => {
         typeof list.note === "string"
           ? list.note
           : "",
+      aiGenerated: list.aiGenerated === true,
+      aiGoal: typeof list.aiGoal === "string" ? list.aiGoal.slice(0, 180) : "",
       createdAt: list.createdAt ?? Date.now() + index,
     }))
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -340,6 +348,8 @@ const serializeList = (list) => ({
   selectedStore: list.selectedStore,
   categoryAssignments: list.categoryAssignments ?? {},
   note: list.note ?? "",
+  aiGenerated: list.aiGenerated === true,
+  aiGoal: list.aiGoal ?? "",
   createdAt: list.createdAt,
   items: Object.fromEntries(
     list.items.map((item) => [item.id, item])
@@ -627,6 +637,9 @@ export default function App() {
     useState(DEFAULT_LIST_ID);
   const [newItem, setNewItem] = useState("");
   const [newListName, setNewListName] = useState("");
+  const [newListMode, setNewListMode] = useState("standard");
+  const [aiListGoal, setAiListGoal] = useState("");
+  const [creatingAiList, setCreatingAiList] = useState(false);
   const [customStoreName, setCustomStoreName] =
     useState("");
   const [customStoreLogoUri, setCustomStoreLogoUri] =
@@ -699,6 +712,7 @@ export default function App() {
   });
 
   const navigation = useNavigation();
+  const premium = usePremium();
 
   useEffect(() => {
     let active = true;
@@ -2410,19 +2424,24 @@ export default function App() {
 
   const openListModal = () => {
     setNewListName(`Lijst ${lists.length + 1}`);
+    setNewListMode("standard");
+    setAiListGoal("");
     setListModalVisible(true);
   };
 
   const closeListModal = () => {
     setNewListName("");
+    setNewListMode("standard");
+    setAiListGoal("");
+    setCreatingAiList(false);
     setListModalVisible(false);
   };
 
-  const createList = () => {
+  const persistCreatedList = ({ name, items = [], aiGenerated = false, aiGoal = "" }) => {
     const user = auth.currentUser;
-    const cleanedName = newListName.trim();
+    const cleanedName = String(name ?? "").trim();
 
-    if (!user || !cleanedName) return;
+    if (!user || !cleanedName) return null;
 
     const initialStoreName = allStores.some(
       (store) => store.name === selectedStore
@@ -2433,10 +2452,12 @@ export default function App() {
     const list = {
       id: createId("list-"),
       name: cleanedName,
-      items: [],
+      items,
       selectedStore: initialStoreName,
       categoryAssignments: {},
       note: "",
+      aiGenerated,
+      aiGoal,
       createdAt: Date.now(),
     };
 
@@ -2453,6 +2474,71 @@ export default function App() {
     enqueueFirebaseWrite("activeListId", list.id);
 
     closeListModal();
+    return list;
+  };
+
+  const createList = () => {
+    persistCreatedList({ name: newListName });
+  };
+
+  const createAiList = async () => {
+    const goal = aiListGoal.trim();
+    if (!goal || creatingAiList) return;
+    if (!premium.premiumActive || premium.consent?.granted !== true) {
+      closeListModal();
+      navigation.navigate("Premium");
+      return;
+    }
+    if (!isOnline) {
+      Alert.alert("Geen internet", "Een nieuwe AI-lijst heeft internet nodig.");
+      return;
+    }
+
+    setCreatingAiList(true);
+    try {
+      const result = await generatePremiumSuggestions({
+        currentItems: [],
+        mode: "ai_list",
+        goal,
+      });
+      const suggestions = (result?.suggestions ?? []).slice(0, 12);
+      if (!suggestions.length) throw new Error("empty-ai-list");
+
+      const initialStoreName = allStores.some((store) => store.name === selectedStore)
+        ? selectedStore
+        : defaultCountryStore.name;
+      const createdAt = Date.now();
+      const generatedItems = await Promise.all(
+        suggestions.map(async (suggestion, index) => ({
+          id: createId("item-"),
+          name: String(suggestion.name).trim(),
+          category: await getCategory(String(suggestion.name), initialStoreName, {
+            categories: routeCategories,
+          }),
+          completed: false,
+          completionTime: "",
+          createdAt: createdAt + index,
+          currentStore: initialStoreName,
+          aiReason: String(suggestion.reason ?? "").slice(0, 180),
+        }))
+      );
+      const compactGoal = goal.length > 24 ? `${goal.slice(0, 23).trim()}…` : goal;
+      persistCreatedList({
+        name: `AI · ${compactGoal}`,
+        items: generatedItems,
+        aiGenerated: true,
+        aiGoal: goal,
+      });
+    } catch (error) {
+      Alert.alert(
+        "AI-lijst niet gemaakt",
+        error?.message === "empty-ai-list"
+          ? "Er kwamen nog geen bruikbare producten terug. Probeer je doel iets concreter te maken."
+          : getPremiumErrorMessage(error)
+      );
+    } finally {
+      setCreatingAiList(false);
+    }
   };
 
   const selectList = (listId) => {
@@ -2980,6 +3066,14 @@ export default function App() {
                     accessibilityRole="tab"
                     accessibilityState={{ selected }}
                   >
+                    {list.aiGenerated && (
+                      <Ionicons
+                        name="hardware-chip-outline"
+                        size={14}
+                        color={selected ? "#FFFFFF" : "#8A651B"}
+                        style={styles.aiListTabIcon}
+                      />
+                    )}
                     <Text
                       style={[
                         styles.listTabText,
@@ -3038,11 +3132,18 @@ export default function App() {
       </View>
 
       <View style={styles.listHeading}>
-        <Text style={styles.listTitle}>
-          {isNotePadOpen
-            ? `Notitieblok · ${activeList.name}`
-            : activeList.name}
-        </Text>
+        <View style={styles.listTitleRow}>
+          {activeList.aiGenerated && !isNotePadOpen && (
+            <View style={styles.aiListTitleIcon}>
+              <Ionicons name="hardware-chip" size={13} color="#8A651B" />
+            </View>
+          )}
+          <Text style={styles.listTitle}>
+            {isNotePadOpen
+              ? `Notitieblok · ${activeList.name}`
+              : activeList.name}
+          </Text>
+        </View>
       </View>
 
       <PremiumAssistant
@@ -3226,7 +3327,10 @@ export default function App() {
 
         {/* Profile button */}
         <TouchableOpacity
-          style={styles.profileButton}
+          style={[
+            styles.profileButton,
+            premium.premiumActive && styles.profileButtonPro,
+          ]}
           onPress={() => {
             flushPendingNote();
             navigation.navigate("Profiel");
@@ -3234,10 +3338,16 @@ export default function App() {
           activeOpacity={0.85}
         >
           <Ionicons
-            name="person-outline"
+            name={premium.premiumActive ? "person" : "person-outline"}
             size={24}
-            color="#FFFFFF"
+            color={premium.premiumActive ? COLORS.text : "#FFFFFF"}
           />
+          {premium.premiumActive && (
+            <View style={styles.profileProBadge}>
+              <Ionicons name="diamond" size={9} color="#FFFFFF" />
+              <Text style={styles.profileProBadgeText}>PRO</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {!isNotePadOpen && sections.length > 0 && (
@@ -3668,7 +3778,7 @@ export default function App() {
                     NIEUWE LIJST
                   </Text>
                   <Text style={styles.modalTitle}>
-                    Geef je lijst een naam
+                    {newListMode === "ai" ? "Laat AI je lijst starten" : "Maak een lijst"}
                   </Text>
                 </View>
 
@@ -3685,49 +3795,130 @@ export default function App() {
               </View>
 
               <Text style={styles.modalDescription}>
-                Elke lijst heeft eigen producten en een eigen supermarkt.
+                Kies zelf een lege lijst of laat SortIt een praktische startlijst maken.
               </Text>
 
-              <View style={styles.inputContainer}>
-                <Ionicons
-                  name="list-outline"
-                  size={21}
-                  color={COLORS.textSoft}
-                />
+              <View style={styles.listModeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.listModeOption,
+                    newListMode === "standard" && styles.listModeOptionSelected,
+                  ]}
+                  onPress={() => setNewListMode("standard")}
+                  activeOpacity={0.78}
+                >
+                  <View style={styles.listModeIcon}>
+                    <Ionicons name="list-outline" size={18} color={COLORS.primaryDark} />
+                  </View>
+                  <Text style={styles.listModeTitle}>Zelf maken</Text>
+                  <Text style={styles.listModeText}>Begin leeg</Text>
+                </TouchableOpacity>
 
-                <TextInput
-                  style={styles.input}
-                  value={newListName}
-                  onChangeText={setNewListName}
-                  placeholder="Bijvoorbeeld Weekend"
-                  placeholderTextColor="#98A19B"
-                  autoFocus
-                  returnKeyType="done"
-                  onSubmitEditing={createList}
-                  maxLength={30}
-                  selectTextOnFocus
-                />
+                <TouchableOpacity
+                  style={[
+                    styles.listModeOption,
+                    styles.aiListModeOption,
+                    newListMode === "ai" && styles.aiListModeOptionSelected,
+                  ]}
+                  onPress={() => setNewListMode("ai")}
+                  activeOpacity={0.78}
+                >
+                  <View style={[styles.listModeIcon, styles.aiListModeIcon]}>
+                    <Ionicons name="hardware-chip-outline" size={18} color="#8A651B" />
+                  </View>
+                  <Text style={styles.listModeTitle}>AI-lijst</Text>
+                  <Text style={styles.listModeText}>Slimme start</Text>
+                  {!premium.premiumActive && (
+                    <Ionicons name="lock-closed" size={11} color="#8A651B" style={styles.aiListLock} />
+                  )}
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  !newListName.trim() &&
-                    styles.saveButtonDisabled,
-                ]}
-                onPress={createList}
-                disabled={!newListName.trim()}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={21}
-                  color="#FFFFFF"
-                />
-                <Text style={styles.saveButtonText}>
-                  Lijst toevoegen
-                </Text>
-              </TouchableOpacity>
+              {newListMode === "standard" ? (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Ionicons name="list-outline" size={21} color={COLORS.textSoft} />
+                    <TextInput
+                      style={styles.input}
+                      value={newListName}
+                      onChangeText={setNewListName}
+                      placeholder="Bijvoorbeeld Weekend"
+                      placeholderTextColor="#98A19B"
+                      returnKeyType="done"
+                      onSubmitEditing={createList}
+                      maxLength={30}
+                      selectTextOnFocus
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.saveButton, !newListName.trim() && styles.saveButtonDisabled]}
+                    onPress={createList}
+                    disabled={!newListName.trim()}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
+                    <Text style={styles.saveButtonText}>Lege lijst toevoegen</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.inputContainer, styles.aiGoalInput]}>
+                    <Ionicons name="sparkles-outline" size={20} color="#8A651B" />
+                    <TextInput
+                      style={styles.input}
+                      value={aiListGoal}
+                      onChangeText={setAiListGoal}
+                      placeholder="Bijv. weekboodschappen voor 2"
+                      placeholderTextColor="#98A19B"
+                      returnKeyType="done"
+                      onSubmitEditing={createAiList}
+                      maxLength={180}
+                    />
+                  </View>
+                  <View style={styles.aiGoalExamples}>
+                    {["Weekmenu", "BBQ", "Ontbijt", "Feestje"].map((goal) => (
+                      <TouchableOpacity
+                        key={goal}
+                        style={styles.aiGoalChip}
+                        onPress={() => setAiListGoal(goal)}
+                        activeOpacity={0.72}
+                      >
+                        <Text style={styles.aiGoalChipText}>{goal}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.saveButton,
+                      styles.aiListCreateButton,
+                      (!aiListGoal.trim() || creatingAiList) && styles.saveButtonDisabled,
+                    ]}
+                    onPress={createAiList}
+                    disabled={!aiListGoal.trim() || creatingAiList}
+                    activeOpacity={0.8}
+                  >
+                    {creatingAiList ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Ionicons
+                        name={premium.premiumActive ? "hardware-chip-outline" : "lock-closed-outline"}
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                    )}
+                    <Text style={styles.saveButtonText}>
+                      {!premium.premiumActive
+                        ? "Ontdek SortIt Pro"
+                        : premium.consent?.granted !== true
+                          ? "Activeer in Pro-instellingen"
+                          : "Maak mijn AI-lijst"}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={styles.aiListPrivacyText}>
+                    Gebruikt je Pro-voorkeuren en historie; je kunt alles daarna aanpassen.
+                  </Text>
+                </>
+              )}
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>

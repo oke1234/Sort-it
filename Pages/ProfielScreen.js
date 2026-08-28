@@ -32,6 +32,7 @@ import { ref, remove, set } from "firebase/database";
 import * as Location from "expo-location";
 
 import { auth, db } from "../firebaseConfig";
+import { usePremium } from "../PremiumContext";
 import { deletePremiumCustomerData } from "../premiumService";
 import {
   beginAccountDeletion,
@@ -111,6 +112,7 @@ const getAuthErrorMessage = (error) => {
 
 export default function ProfielScreen({ navigation }) {
   const user = auth.currentUser;
+  const premium = usePremium();
 
   const [name, setName] = useState(user?.displayName || "");
   const [savedName, setSavedName] = useState(user?.displayName || "");
@@ -603,21 +605,39 @@ export default function ProfielScreen({ navigation }) {
             </Text>
           </View>
 
-          <Text style={styles.sectionTitle}>SortIt Premium</Text>
+          <Text style={styles.sectionTitle}>SortIt Pro</Text>
           <TouchableOpacity
-            style={styles.premiumCard}
+            style={[
+              styles.premiumCard,
+              premium.premiumActive && styles.premiumCardActive,
+            ]}
             onPress={() => navigation.navigate("Premium")}
             activeOpacity={0.82}
             accessibilityRole="button"
-            accessibilityLabel="SortIt Premium bekijken"
+            accessibilityLabel={
+              premium.premiumActive
+                ? "SortIt Pro-instellingen openen"
+                : "SortIt Pro ontdekken"
+            }
           >
-            <View style={styles.premiumIcon}>
-              <Ionicons name="diamond-outline" size={25} color="#D89A27" />
+            <View style={[
+              styles.premiumIcon,
+              premium.premiumActive && styles.premiumIconActive,
+            ]}>
+              <Ionicons
+                name={premium.premiumActive ? "ribbon" : "diamond-outline"}
+                size={24}
+                color="#D89A27"
+              />
             </View>
             <View style={styles.premiumCopy}>
-              <Text style={styles.premiumTitle}>Kookprofiel en slimme lijsten</Text>
+              <Text style={styles.premiumTitle}>
+                {premium.premiumActive ? "Je bent SortIt Pro" : "Ontdek SortIt Pro"}
+              </Text>
               <Text style={styles.premiumText}>
-                Ontdek Premium voor €3 per maand en beheer je abonnement en voorkeuren.
+                {premium.premiumActive
+                  ? "Ga naar je Pro-instellingen, kookprofiel en abonnement."
+                  : "Slimme lijsten, persoonlijke suggesties en een kookprofiel."}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#8A651B" />
@@ -1303,6 +1323,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFF5DD",
   },
+  premiumCardActive: {
+    borderColor: "#E3C36D",
+    backgroundColor: "#FFF9EA",
+  },
   premiumIcon: {
     width: 49,
     height: 49,
@@ -1310,6 +1334,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 16,
     backgroundColor: "#FFFFFF",
+  },
+  premiumIconActive: {
+    backgroundColor: "#FFF3C9",
   },
   premiumCopy: {
     flex: 1,

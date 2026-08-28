@@ -6,6 +6,7 @@ import {
   isEntitlementActive,
   mapRevenueCatEntitlement,
   sanitizeCurrentItems,
+  sanitizeListGoal,
   sanitizePreferences,
 } from "./index.js";
 
@@ -43,6 +44,11 @@ test("huidige lijst accepteert uitsluitend begrensde geldige items", () => {
     null,
   ]);
   assert.deepEqual(result, [{ name: "Pasta", category: "Pasta", completed: false }]);
+});
+
+test("AI-lijstdoel wordt compact en veilig opgeschoond", () => {
+  assert.equal(sanitizeListGoal("  Weekmenu\nvoor   twee  "), "Weekmenu voor twee");
+  assert.equal(sanitizeListGoal("x".repeat(300)).length, 180);
 });
 
 test("premium entitlement moet actief en niet verlopen zijn", () => {

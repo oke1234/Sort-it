@@ -177,18 +177,18 @@ export default function PremiumScreen({ navigation }) {
             <Ionicons name="arrow-back" size={26} color={COLORS.text} />
           </TouchableOpacity>
           <View style={styles.premiumBadge}>
-            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+            <Ionicons name="sparkles" size={12} color="#FFFFFF" />
             <Text style={styles.premiumBadgeText}>SORTIT PREMIUM</Text>
           </View>
           <Text style={styles.title}>Slimmer boodschappen doen</Text>
           <Text style={styles.subtitle}>
-            Een persoonlijk kookprofiel, slimme lijstvoorstellen en passende aanvullingen tijdens het maken van je lijst.
+            Persoonlijke suggesties en slimmere boodschappenlijsten.
           </Text>
         </View>
 
         <View style={styles.heroCard}>
           <View style={styles.heroIcon}>
-            <Ionicons name="diamond-outline" size={30} color={COLORS.gold} />
+            <Ionicons name="diamond-outline" size={26} color={COLORS.gold} />
           </View>
           <View style={styles.heroCopy}>
             <Text style={styles.heroTitle}>{subscriptionStatus}</Text>
@@ -197,16 +197,16 @@ export default function PremiumScreen({ navigation }) {
             </Text>
           </View>
           {premium.premiumActive && (
-            <Ionicons name="checkmark-circle" size={27} color={COLORS.primary} />
+            <Ionicons name="diamond" size={21} color={COLORS.gold} />
           )}
         </View>
 
         {!premium.premiumActive ? (
           <View style={styles.card}>
             {[
-              ["analytics-outline", "Jouw kookgedragsprofiel", "Gebaseerd op producten die jij zelf hebt afgevinkt."],
-              ["basket-outline", "Complete lijstvoorstellen", "Terugkerende producten en passende maaltijdideeën."],
-              ["sparkles-outline", "Slimme aanvullingen", "Maximaal vijf relevante ideeën bij je huidige lijst."],
+              ["analytics-outline", "Persoonlijk kookprofiel", "Gebaseerd op jouw historie."],
+              ["basket-outline", "Slimme lijsten", "Handige complete voorstellen."],
+              ["sparkles-outline", "Passende aanvullingen", "Relevante ideeën voor je lijst."],
             ].map(([icon, title, text]) => (
               <View style={styles.featureRow} key={title}>
                 <View style={styles.featureIcon}>
@@ -482,16 +482,16 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 13, paddingBottom: 45 },
   header: { marginBottom: 20 },
   backButton: { width: 44, height: 44, marginLeft: -9, marginBottom: 13, alignItems: "center", justifyContent: "center" },
-  premiumBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: COLORS.gold },
-  premiumBadgeText: { fontSize: 10, fontWeight: "900", letterSpacing: 1, color: "#FFFFFF" },
-  title: { marginTop: 11, fontSize: 31, lineHeight: 36, fontWeight: "900", color: COLORS.text },
+  premiumBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: COLORS.gold },
+  premiumBadgeText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.8, color: "#FFFFFF" },
+  title: { marginTop: 9, fontSize: 28, lineHeight: 33, fontWeight: "900", color: COLORS.text },
   subtitle: { marginTop: 8, fontSize: 15, lineHeight: 22, color: COLORS.textSoft },
-  heroCard: { flexDirection: "row", alignItems: "center", padding: 17, marginBottom: 20, borderWidth: 1, borderColor: "#F0D99E", borderRadius: 21, backgroundColor: COLORS.goldSoft },
-  heroIcon: { width: 54, height: 54, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
-  heroCopy: { flex: 1, marginHorizontal: 13 },
-  heroTitle: { fontSize: 15, fontWeight: "900", color: COLORS.text },
-  heroPrice: { marginTop: 3, fontSize: 22, fontWeight: "900", color: COLORS.primaryDark },
-  heroPeriod: { fontSize: 13, fontWeight: "700", color: COLORS.textSoft },
+  heroCard: { flexDirection: "row", alignItems: "center", padding: 14, marginBottom: 18, borderWidth: 1, borderColor: "#F0D99E", borderRadius: 18, backgroundColor: COLORS.goldSoft },
+  heroIcon: { width: 46, height: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFFFF" },
+  heroCopy: { flex: 1, marginHorizontal: 11 },
+  heroTitle: { fontSize: 14, fontWeight: "900", color: COLORS.text },
+  heroPrice: { marginTop: 2, fontSize: 19, fontWeight: "900", color: COLORS.primaryDark },
+  heroPeriod: { fontSize: 12, fontWeight: "700", color: COLORS.textSoft },
   sectionTitle: { marginTop: 5, marginBottom: 9, fontSize: 13, fontWeight: "900", letterSpacing: 0.4, color: COLORS.text, textTransform: "uppercase" },
   card: { padding: 17, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border, borderRadius: 21, backgroundColor: COLORS.surface },
   cardTitle: { fontSize: 16, fontWeight: "900", color: COLORS.text },
