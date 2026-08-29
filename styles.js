@@ -447,6 +447,9 @@ export const styles = StyleSheet.create({
   listHeading: {
     marginBottom: 7,
     paddingHorizontal: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   listTitle: {
@@ -456,8 +459,28 @@ export const styles = StyleSheet.create({
   },
 
   listTitleRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+  },
+
+  listAssistantToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+
+  listAssistantToggleLabel: {
+    marginLeft: 4,
+    marginRight: 2,
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.textSoft,
+  },
+
+  listAssistantSwitch: {
+    transform: [{ scaleX: 0.72 }, { scaleY: 0.72 }],
+    marginHorizontal: -5,
   },
 
   aiListTitleIcon: {
@@ -675,6 +698,64 @@ export const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 14,
     color: COLORS.textSoft,
+  },
+
+  premiumSuggestionPrompt: {
+    marginTop: 10,
+    padding: 11,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    backgroundColor: COLORS.surfaceSoft,
+  },
+
+  premiumSuggestionQuestion: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: COLORS.text,
+  },
+
+  premiumSuggestionActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 9,
+  },
+
+  premiumSuggestionNo: {
+    minWidth: 66,
+    minHeight: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+  },
+
+  premiumSuggestionNoText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.textSoft,
+  },
+
+  premiumSuggestionYes: {
+    minWidth: 124,
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+  },
+
+  premiumSuggestionYesText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#FFFFFF",
   },
 
   premiumDismissButton: {

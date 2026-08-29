@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -6,38 +6,63 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
+import { auth } from "./firebaseConfig";
 import { usePremium } from "./PremiumContext";
 import {
   generatePremiumSuggestions,
-  getPremiumErrorMessage,
   recordSuggestionFeedback,
 } from "./premiumService";
 import { COLORS, styles } from "./styles";
 
 const AUTO_DEBOUNCE_MS = 1400;
-const MIN_REQUEST_INTERVAL_MS = 10000;
+const AUTO_SUGGESTION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const ASSISTANT_CACHE_PREFIX = "SORTIT_ASSISTANT_CACHE_V1";
 
-const suggestionId = (suggestion, index) =>
-  `${String(suggestion.name ?? "product").toLocaleLowerCase("nl")}-${index}`
+const suggestionId = (suggestion) =>
+  String(suggestion?.name ?? "product")
+    .trim()
+    .toLocaleLowerCase("nl")
     .replace(/[^a-z0-9-]/g, "-")
     .slice(0, 80);
+
+const sanitizeCache = (value) => {
+  if (!value || typeof value !== "object") return {};
+
+  const oldestAllowed = Date.now() - CACHE_MAX_AGE_MS;
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => {
+      if (!entry || typeof entry !== "object") return false;
+      const timestamp = Math.max(
+        Number(entry.createdAt) || 0,
+        Number(entry.lastDecisionAt) || 0
+      );
+      return timestamp >= oldestAllowed;
+    })
+  );
+};
 
 export default function PremiumAssistant({
   items,
   listId,
+  enabled,
   isOnline,
   navigation,
   onAddProduct,
 }) {
   const premium = usePremium();
-  const [result, setResult] = useState(null);
-  const [loadingMode, setLoadingMode] = useState("");
-  const [hiddenIds, setHiddenIds] = useState(() => new Set());
-  const [addingIds, setAddingIds] = useState(() => new Set());
-  const lastRequestAtRef = useRef(0);
-  const lastSignatureRef = useRef("");
+  const userId = auth.currentUser?.uid ?? "";
+  const cacheKey = userId ? `${ASSISTANT_CACHE_PREFIX}:${userId}` : "";
+  const [assistantState, setAssistantState] = useState({});
+  const [cacheReady, setCacheReady] = useState(false);
+  const [loadingListId, setLoadingListId] = useState("");
+  const [adding, setAdding] = useState(false);
+  const cacheWriteRef = useRef(Promise.resolve());
+  const observationsRef = useRef({});
+  const previousActiveListRef = useRef("");
   const requestSequenceRef = useRef(0);
 
   const openItems = useMemo(
@@ -46,103 +71,191 @@ export default function PremiumAssistant({
   );
   const signature = useMemo(
     () =>
-      `${listId}:${openItems
+      openItems
         .map((item) => String(item.name).trim().toLocaleLowerCase("nl"))
         .sort()
-        .join("|")}`,
-    [listId, openItems]
+        .join("|"),
+    [openItems]
+  );
+  const currentState = assistantState[listId] ?? {};
+  const pendingSuggestion = currentState.pendingSuggestion ?? null;
+
+  useEffect(() => {
+    let active = true;
+    setAssistantState({});
+    setCacheReady(false);
+    observationsRef.current = {};
+    previousActiveListRef.current = "";
+
+    if (!cacheKey) {
+      return () => {
+        active = false;
+      };
+    }
+
+    AsyncStorage.getItem(cacheKey)
+      .then((stored) => {
+        if (!active) return;
+        const parsed = stored ? JSON.parse(stored) : {};
+        setAssistantState(sanitizeCache(parsed));
+      })
+      .catch(() => {
+        if (active) setAssistantState({});
+      })
+      .finally(() => {
+        if (active) setCacheReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [cacheKey]);
+
+  const updateListState = useCallback(
+    (targetListId, updater) => {
+      setAssistantState((current) => {
+        const currentEntry = current[targetListId] ?? {};
+        const nextEntry =
+          typeof updater === "function" ? updater(currentEntry) : updater;
+        const next = {
+          ...current,
+          [targetListId]: nextEntry,
+        };
+
+        if (cacheKey) {
+          cacheWriteRef.current = cacheWriteRef.current
+            .catch(() => {})
+            .then(() => AsyncStorage.setItem(cacheKey, JSON.stringify(next)));
+        }
+
+        return next;
+      });
+    },
+    [cacheKey]
   );
 
-  const loadSuggestions = async (mode, { silent = false } = {}) => {
-    if (!isOnline) {
-      if (!silent) Alert.alert("Geen internet", "Nieuwe slimme suggesties hebben internet nodig.");
-      return;
-    }
+  const loadSuggestion = useCallback(async () => {
+    if (!isOnline || !enabled || !openItems.length || loadingListId) return;
+
+    const targetListId = listId;
+    const targetSignature = signature;
+    const targetItems = openItems;
     const sequence = ++requestSequenceRef.current;
-    setLoadingMode(mode);
+    setLoadingListId(targetListId);
+
     try {
-      const next = await generatePremiumSuggestions({
-        currentItems: openItems,
-        mode,
+      const result = await generatePremiumSuggestions({
+        currentItems: targetItems,
+        mode: "contextual",
       });
       if (sequence !== requestSequenceRef.current) return;
-      setResult(next);
-      setHiddenIds(new Set());
-      lastRequestAtRef.current = Date.now();
-      lastSignatureRef.current = signature;
-    } catch (error) {
-      if (!silent) Alert.alert("Suggesties niet geladen", getPremiumErrorMessage(error));
+
+      const suggestion = result?.suggestions?.[0] ?? null;
+      const now = Date.now();
+      updateListState(targetListId, (current) => ({
+        ...current,
+        suggestionSetId: result?.suggestionSetId ?? "",
+        suggestionId: suggestion ? suggestionId(suggestion) : "",
+        pendingSuggestion: suggestion,
+        source: result?.source ?? "",
+        contextSignature: targetSignature,
+        createdAt: now,
+        lastDecisionAt: suggestion ? current.lastDecisionAt ?? 0 : now,
+      }));
+    } catch {
+      // Automatische suggesties blijven stil bij een tijdelijke netwerkfout.
+      updateListState(targetListId, (current) => ({
+        ...current,
+        contextSignature: targetSignature,
+        lastDecisionAt: Date.now(),
+      }));
     } finally {
-      if (sequence === requestSequenceRef.current) setLoadingMode("");
+      if (sequence === requestSequenceRef.current) setLoadingListId("");
     }
-  };
+  }, [enabled, isOnline, listId, loadingListId, openItems, signature, updateListState]);
 
   useEffect(() => {
-    setResult(null);
-    setHiddenIds(new Set());
-    lastSignatureRef.current = "";
-  }, [listId]);
+    if (!cacheReady) return undefined;
 
-  useEffect(() => {
+    const switchedList =
+      previousActiveListRef.current && previousActiveListRef.current !== listId;
+    previousActiveListRef.current = listId;
+
+    const previousObservation = observationsRef.current[listId];
+    observationsRef.current[listId] = { enabled, signature };
+
+    if (!previousObservation || switchedList) return undefined;
+
+    const justEnabled = !previousObservation.enabled && enabled;
+    const contentChanged = previousObservation.signature !== signature;
+    const lastActivityAt = Math.max(
+      Number(currentState.createdAt) || 0,
+      Number(currentState.lastDecisionAt) || 0
+    );
+    const cooldownPassed =
+      !lastActivityAt || Date.now() - lastActivityAt >= AUTO_SUGGESTION_COOLDOWN_MS;
+
     if (
       !premium.premiumActive ||
       premium.consent?.granted !== true ||
+      !enabled ||
       !isOnline ||
       openItems.length === 0 ||
-      signature === lastSignatureRef.current
+      pendingSuggestion ||
+      loadingListId ||
+      !cooldownPassed ||
+      (!justEnabled && !contentChanged)
     ) {
       return undefined;
     }
 
-    const timeUntilAllowed = Math.max(
-      0,
-      MIN_REQUEST_INTERVAL_MS - (Date.now() - lastRequestAtRef.current)
-    );
-    const timer = setTimeout(
-      () => loadSuggestions("contextual", { silent: true }),
-      AUTO_DEBOUNCE_MS + timeUntilAllowed
-    );
+    const timer = setTimeout(loadSuggestion, AUTO_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [isOnline, openItems.length, premium.consent?.granted, premium.premiumActive, signature]);
+  }, [
+    cacheReady,
+    currentState.createdAt,
+    currentState.lastDecisionAt,
+    enabled,
+    isOnline,
+    listId,
+    loadSuggestion,
+    loadingListId,
+    openItems.length,
+    pendingSuggestion,
+    premium.consent?.granted,
+    premium.premiumActive,
+    signature,
+  ]);
 
-  const sendFeedback = (id, action) => {
-    if (!result?.suggestionSetId) return;
-    recordSuggestionFeedback({
-      suggestionSetId: result.suggestionSetId,
-      suggestionId: id,
-      action,
-    }).catch(() => null);
-  };
-
-  const acceptSuggestion = async (suggestion, index) => {
-    const id = suggestionId(suggestion, index);
-    setAddingIds((current) => new Set([...current, id]));
-    try {
-      await onAddProduct(suggestion.name);
-      setHiddenIds((current) => new Set([...current, id]));
-      sendFeedback(id, "accepted");
-    } catch {
-      Alert.alert("Niet toegevoegd", `${suggestion.name} kon niet worden toegevoegd.`);
-    } finally {
-      setAddingIds((current) => {
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
+  const finishSuggestion = (action) => {
+    if (currentState.suggestionSetId && currentState.suggestionId) {
+      recordSuggestionFeedback({
+        suggestionSetId: currentState.suggestionSetId,
+        suggestionId: currentState.suggestionId,
+        action,
+      }).catch(() => null);
     }
+
+    updateListState(listId, (current) => ({
+      ...current,
+      pendingSuggestion: null,
+      lastDecisionAt: Date.now(),
+    }));
   };
 
-  const dismissSuggestion = (suggestion, index) => {
-    const id = suggestionId(suggestion, index);
-    setHiddenIds((current) => new Set([...current, id]));
-    sendFeedback(id, "dismissed");
-  };
-
-  const addAll = async () => {
-    const available = visibleSuggestions;
-    if (!available.length) return;
-    for (let index = 0; index < available.length; index += 1) {
-      await acceptSuggestion(available[index], index);
+  const acceptSuggestion = async () => {
+    if (!pendingSuggestion || adding) return;
+    setAdding(true);
+    try {
+      await onAddProduct(pendingSuggestion.name);
+      finishSuggestion("accepted");
+    } catch {
+      Alert.alert(
+        "Niet toegevoegd",
+        `${pendingSuggestion.name} kon niet worden toegevoegd.`
+      );
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -159,7 +272,9 @@ export default function PremiumAssistant({
         </View>
         <View style={styles.premiumTeaserCopy}>
           <Text style={styles.premiumTeaserTitle}>Slimme assistent</Text>
-          <Text style={styles.premiumTeaserText}>Ontdek persoonlijke suggesties in SortIt Pro</Text>
+          <Text style={styles.premiumTeaserText}>
+            Ontdek persoonlijke suggesties in SortIt Pro
+          </Text>
         </View>
         <Ionicons name="chevron-forward" size={19} color="#8A651B" />
       </TouchableOpacity>
@@ -182,108 +297,56 @@ export default function PremiumAssistant({
     );
   }
 
-  const visibleSuggestions = (result?.suggestions ?? [])
-    .filter((suggestion, index) => !hiddenIds.has(suggestionId(suggestion, index)))
-    .slice(0, 3);
+  if (!enabled || !pendingSuggestion) return null;
 
   return (
     <View style={styles.premiumAssistant}>
       <View style={styles.premiumAssistantHeader}>
         <View style={styles.premiumAssistantIcon}>
-          <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+          <Ionicons name="sparkles" size={17} color="#FFFFFF" />
         </View>
         <View style={styles.premiumAssistantCopy}>
-          <Text style={styles.premiumAssistantTitle}>Slimme assistent</Text>
+          <Text style={styles.premiumAssistantTitle}>Slimme suggestie</Text>
           <Text style={styles.premiumAssistantSubtitle}>
-            {loadingMode
-              ? "Je lijst wordt bekeken…"
-              : result?.source === "deterministic"
-                ? "Persoonlijke suggesties · slimme fallback"
-                : "Op basis van je lijst en kookprofiel"}
+            Deze blijft staan tot je kiest
           </Text>
         </View>
+      </View>
+
+      <View style={styles.premiumSuggestionPrompt}>
+        <Text style={styles.premiumSuggestionQuestion}>
+          {pendingSuggestion.name} toevoegen?
+        </Text>
+        <Text style={styles.premiumSuggestionReason}>{pendingSuggestion.reason}</Text>
+      </View>
+
+      <View style={styles.premiumSuggestionActions}>
         <TouchableOpacity
-          style={styles.premiumGenerateButton}
-          onPress={() => loadSuggestions("full_list")}
-          disabled={Boolean(loadingMode)}
+          style={styles.premiumSuggestionNo}
+          onPress={() => finishSuggestion("rejected")}
+          disabled={adding}
           accessibilityRole="button"
-          accessibilityLabel="Compleet boodschappenlijstvoorstel maken"
+          accessibilityLabel={`${pendingSuggestion.name} niet toevoegen`}
         >
-          {loadingMode === "full_list" ? (
-            <ActivityIndicator size="small" color={COLORS.primaryDark} />
+          <Text style={styles.premiumSuggestionNoText}>Nee</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.premiumSuggestionYes}
+          onPress={acceptSuggestion}
+          disabled={adding}
+          accessibilityRole="button"
+          accessibilityLabel={`${pendingSuggestion.name} toevoegen`}
+        >
+          {adding ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Ionicons name="list-outline" size={19} color={COLORS.primaryDark} />
+            <>
+              <Ionicons name="add" size={17} color="#FFFFFF" />
+              <Text style={styles.premiumSuggestionYesText}>Ja, toevoegen</Text>
+            </>
           )}
         </TouchableOpacity>
       </View>
-
-      {!isOnline && (
-        <View style={styles.premiumOfflineRow}>
-          <Ionicons name="cloud-offline-outline" size={15} color={COLORS.textSoft} />
-          <Text style={styles.premiumOfflineText}>Offline · bestaande lijsten blijven werken</Text>
-        </View>
-      )}
-
-      {loadingMode && !result && (
-        <View style={styles.premiumLoadingRow}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.premiumLoadingText}>Passende producten zoeken…</Text>
-        </View>
-      )}
-
-      {visibleSuggestions.map((suggestion, index) => {
-        const id = suggestionId(suggestion, index);
-        return (
-          <View style={styles.premiumSuggestion} key={id}>
-            <View style={styles.premiumSuggestionCopy}>
-              <Text style={styles.premiumSuggestionName}>{suggestion.name}</Text>
-              <Text style={styles.premiumSuggestionReason}>{suggestion.reason}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.premiumDismissButton}
-              onPress={() => dismissSuggestion(suggestion, index)}
-              accessibilityLabel={`${suggestion.name} verbergen`}
-            >
-              <Ionicons name="close" size={17} color={COLORS.textSoft} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.premiumAddSuggestion}
-              onPress={() => acceptSuggestion(suggestion, index)}
-              disabled={addingIds.has(id)}
-              accessibilityLabel={`${suggestion.name} toevoegen`}
-            >
-              {addingIds.has(id) ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Ionicons name="add" size={19} color="#FFFFFF" />
-              )}
-            </TouchableOpacity>
-          </View>
-        );
-      })}
-
-      {(result?.mealIdeas ?? []).slice(0, 1).map((idea) => (
-        <View style={styles.premiumMealIdea} key={idea.title}>
-          <Ionicons name="restaurant-outline" size={17} color="#8A651B" />
-          <View style={styles.premiumMealCopy}>
-            <Text style={styles.premiumMealTitle}>{idea.title}</Text>
-            <Text style={styles.premiumMealText}>{idea.reason}</Text>
-          </View>
-        </View>
-      ))}
-
-      {result && visibleSuggestions.length === 0 && (
-        <Text style={styles.premiumEmptyText}>
-          Je lijst ziet er compleet uit. Tik op het lijst-icoon voor een nieuw weekvoorstel.
-        </Text>
-      )}
-
-      {visibleSuggestions.length > 1 && (
-        <TouchableOpacity style={styles.premiumAddAllButton} onPress={addAll}>
-          <Ionicons name="add-circle-outline" size={17} color={COLORS.primaryDark} />
-          <Text style={styles.premiumAddAllText}>Voeg alle {visibleSuggestions.length} toe</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }

@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   SectionList,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -100,6 +101,7 @@ const createDefaultList = ({
   selectedStore = "Lidl",
   categoryAssignments = {},
   note = "",
+  assistantEnabled = false,
 } = {}) => ({
   id: DEFAULT_LIST_ID,
   name: "Lijst 1",
@@ -107,6 +109,7 @@ const createDefaultList = ({
   selectedStore,
   categoryAssignments,
   note,
+  assistantEnabled,
   createdAt: Date.now(),
 });
 
@@ -311,6 +314,7 @@ const normalizeShoppingLists = (data = {}) => {
           : "",
       aiGenerated: list.aiGenerated === true,
       aiGoal: typeof list.aiGoal === "string" ? list.aiGoal.slice(0, 180) : "",
+      assistantEnabled: list.assistantEnabled === true,
       createdAt: list.createdAt ?? Date.now() + index,
     }))
     .sort((a, b) => a.createdAt - b.createdAt);
@@ -350,6 +354,7 @@ const serializeList = (list) => ({
   note: list.note ?? "",
   aiGenerated: list.aiGenerated === true,
   aiGoal: list.aiGoal ?? "",
+  assistantEnabled: list.assistantEnabled === true,
   createdAt: list.createdAt,
   items: Object.fromEntries(
     list.items.map((item) => [item.id, item])
@@ -2458,6 +2463,7 @@ export default function App() {
       note: "",
       aiGenerated,
       aiGoal,
+      assistantEnabled: false,
       createdAt: Date.now(),
     };
 
@@ -2548,6 +2554,20 @@ export default function App() {
     resetDrag();
     setActiveListId(listId);
     enqueueFirebaseWrite("activeListId", listId);
+  };
+
+  const setActiveListAssistantEnabled = (enabled) => {
+    setLists((currentLists) =>
+      currentLists.map((list) =>
+        list.id === activeListId
+          ? { ...list, assistantEnabled: enabled }
+          : list
+      )
+    );
+    enqueueFirebaseWrite(
+      `lists/${activeListId}/assistantEnabled`,
+      enabled
+    );
   };
 
   const confirmRemoveList = (list) => {
@@ -3144,11 +3164,32 @@ export default function App() {
               : activeList.name}
           </Text>
         </View>
+        {premium.premiumActive && premium.consent?.granted === true && (
+          <View style={styles.listAssistantToggle}>
+            <Ionicons
+              name="sparkles-outline"
+              size={13}
+              color={activeList.assistantEnabled ? COLORS.primary : COLORS.textSoft}
+            />
+            <Text style={styles.listAssistantToggleLabel}>AI</Text>
+            <Switch
+              value={activeList.assistantEnabled === true}
+              onValueChange={setActiveListAssistantEnabled}
+              trackColor={{ false: "#D8DEDA", true: "#9AC5A8" }}
+              thumbColor={
+                activeList.assistantEnabled ? COLORS.primary : "#F7F8F7"
+              }
+              style={styles.listAssistantSwitch}
+              accessibilityLabel={`Slimme assistent voor ${activeList.name}`}
+            />
+          </View>
+        )}
       </View>
 
       <PremiumAssistant
         items={items}
         listId={activeListId}
+        enabled={activeList.assistantEnabled === true}
         isOnline={isOnline}
         navigation={navigation}
         onAddProduct={(name) => addProductByName(name)}
