@@ -596,6 +596,37 @@ export const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
   },
 
+  premiumAssistantNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 4,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#ECD39B",
+    borderRadius: 14,
+    backgroundColor: "#FFF8E8",
+  },
+
+  premiumAssistantNoticeCopy: {
+    flex: 1,
+  },
+
+  premiumAssistantNoticeTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#705114",
+  },
+
+  premiumAssistantNoticeText: {
+    marginTop: 1,
+    fontSize: 10,
+    lineHeight: 14,
+    color: "#8A651B",
+  },
+
   premiumAssistantHeader: {
     flexDirection: "row",
     alignItems: "center",

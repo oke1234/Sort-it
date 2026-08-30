@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Text,
   TouchableOpacity,
   View,
@@ -18,7 +19,7 @@ import {
 import { COLORS, styles } from "./styles";
 
 const AUTO_DEBOUNCE_MS = 1400;
-const AUTO_SUGGESTION_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const AUTO_SUGGESTION_COOLDOWN_MS = 20 * 60 * 1000;
 const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const ASSISTANT_CACHE_PREFIX = "SORTIT_ASSISTANT_CACHE_V1";
 
@@ -38,7 +39,8 @@ const sanitizeCache = (value) => {
       if (!entry || typeof entry !== "object") return false;
       const timestamp = Math.max(
         Number(entry.createdAt) || 0,
-        Number(entry.lastDecisionAt) || 0
+        Number(entry.lastDecisionAt) || 0,
+        Number(entry.lastAttemptAt) || 0
       );
       return timestamp >= oldestAllowed;
     })
@@ -60,6 +62,9 @@ export default function PremiumAssistant({
   const [cacheReady, setCacheReady] = useState(false);
   const [loadingListId, setLoadingListId] = useState("");
   const [adding, setAdding] = useState(false);
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState === "active"
+  );
   const cacheWriteRef = useRef(Promise.resolve());
   const observationsRef = useRef({});
   const previousActiveListRef = useRef("");
@@ -79,6 +84,16 @@ export default function PremiumAssistant({
   );
   const currentState = assistantState[listId] ?? {};
   const pendingSuggestion = currentState.pendingSuggestion ?? null;
+  const quotaReachedToday =
+    currentState.errorCode === "quota" &&
+    currentState.errorDateKey === new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppIsActive(nextState === "active");
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -135,7 +150,15 @@ export default function PremiumAssistant({
   );
 
   const loadSuggestion = useCallback(async () => {
-    if (!isOnline || !enabled || !openItems.length || loadingListId) return;
+    if (
+      !appIsActive ||
+      !isOnline ||
+      !enabled ||
+      !openItems.length ||
+      loadingListId
+    ) {
+      return;
+    }
 
     const targetListId = listId;
     const targetSignature = signature;
@@ -160,19 +183,37 @@ export default function PremiumAssistant({
         source: result?.source ?? "",
         contextSignature: targetSignature,
         createdAt: now,
+        lastAttemptAt: now,
         lastDecisionAt: suggestion ? current.lastDecisionAt ?? 0 : now,
+        errorCode: "",
+        errorDateKey: "",
       }));
-    } catch {
-      // Automatische suggesties blijven stil bij een tijdelijke netwerkfout.
+    } catch (error) {
+      const quotaReached = String(error?.code ?? "").includes(
+        "resource-exhausted"
+      );
       updateListState(targetListId, (current) => ({
         ...current,
         contextSignature: targetSignature,
-        lastDecisionAt: Date.now(),
+        lastAttemptAt: Date.now(),
+        errorCode: quotaReached ? "quota" : "temporary",
+        errorDateKey: quotaReached
+          ? new Date().toISOString().slice(0, 10)
+          : "",
       }));
     } finally {
       if (sequence === requestSequenceRef.current) setLoadingListId("");
     }
-  }, [enabled, isOnline, listId, loadingListId, openItems, signature, updateListState]);
+  }, [
+    appIsActive,
+    enabled,
+    isOnline,
+    listId,
+    loadingListId,
+    openItems,
+    signature,
+    updateListState,
+  ]);
 
   useEffect(() => {
     if (!cacheReady) return undefined;
@@ -190,7 +231,8 @@ export default function PremiumAssistant({
     const contentChanged = previousObservation.signature !== signature;
     const lastActivityAt = Math.max(
       Number(currentState.createdAt) || 0,
-      Number(currentState.lastDecisionAt) || 0
+      Number(currentState.lastDecisionAt) || 0,
+      Number(currentState.lastAttemptAt) || 0
     );
     const cooldownPassed =
       !lastActivityAt || Date.now() - lastActivityAt >= AUTO_SUGGESTION_COOLDOWN_MS;
@@ -198,10 +240,12 @@ export default function PremiumAssistant({
     if (
       !premium.premiumActive ||
       premium.consent?.granted !== true ||
+      !appIsActive ||
       !enabled ||
       !isOnline ||
       openItems.length === 0 ||
       pendingSuggestion ||
+      quotaReachedToday ||
       loadingListId ||
       !cooldownPassed ||
       (!justEnabled && !contentChanged)
@@ -213,8 +257,10 @@ export default function PremiumAssistant({
     return () => clearTimeout(timer);
   }, [
     cacheReady,
+    appIsActive,
     currentState.createdAt,
     currentState.lastDecisionAt,
+    currentState.lastAttemptAt,
     enabled,
     isOnline,
     listId,
@@ -224,6 +270,7 @@ export default function PremiumAssistant({
     pendingSuggestion,
     premium.consent?.granted,
     premium.premiumActive,
+    quotaReachedToday,
     signature,
   ]);
 
@@ -240,6 +287,8 @@ export default function PremiumAssistant({
       ...current,
       pendingSuggestion: null,
       lastDecisionAt: Date.now(),
+      errorCode: "",
+      errorDateKey: "",
     }));
   };
 
@@ -297,7 +346,21 @@ export default function PremiumAssistant({
     );
   }
 
-  if (!enabled || !pendingSuggestion) return null;
+  if (!enabled || (!pendingSuggestion && !quotaReachedToday)) return null;
+
+  if (quotaReachedToday && !pendingSuggestion) {
+    return (
+      <View style={styles.premiumAssistantNotice}>
+        <Ionicons name="time-outline" size={17} color="#8A651B" />
+        <View style={styles.premiumAssistantNoticeCopy}>
+          <Text style={styles.premiumAssistantNoticeTitle}>AI-limiet bereikt</Text>
+          <Text style={styles.premiumAssistantNoticeText}>
+            Vandaag zijn je 20 generaties gebruikt. Morgen kun je weer verder.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.premiumAssistant}>
